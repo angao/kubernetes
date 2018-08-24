@@ -79,6 +79,8 @@ const (
 	// The number of batches is given by:
 	//      1+floor(log_2(ceil(N/SlowStartInitialBatchSize)))
 	SlowStartInitialBatchSize = 1
+
+	ScaleDownAnnotation = "app.suning.com/scaledown"
 )
 
 var UpdateTaintBackoff = wait.Backoff{
@@ -735,6 +737,11 @@ func (s ActivePods) Len() int      { return len(s) }
 func (s ActivePods) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
 func (s ActivePods) Less(i, j int) bool {
+	// If pod has this annotation, this one is smaller
+	if s[i].Annotations[ScaleDownAnnotation] != s[j].Annotations[ScaleDownAnnotation] &&
+		(len(s[i].Annotations[ScaleDownAnnotation]) == 0 || len(s[j].Annotations[ScaleDownAnnotation]) == 0) {
+		return len(s[i].Annotations[ScaleDownAnnotation]) != 0
+	}
 	// 1. Unassigned < assigned
 	// If only one of the pods is unassigned, the unassigned one is smaller
 	if s[i].Spec.NodeName != s[j].Spec.NodeName && (len(s[i].Spec.NodeName) == 0 || len(s[j].Spec.NodeName) == 0) {
