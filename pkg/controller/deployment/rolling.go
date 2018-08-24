@@ -207,7 +207,17 @@ func (dc *DeploymentController) scaleDownOldReplicaSetsForRollingUpdate(allRSs [
 	sort.Sort(controller.ReplicaSetsByCreationTimestamp(oldRSs))
 
 	totalScaledDown := int32(0)
+	pauseThreshold := int32(0)
 	totalScaleDownCount := availablePodCount - minAvailable
+
+	grayscaleCount, err := deploymentutil.GetGrayscaleCount(deployment)
+	if err != nil {
+		return 0, err
+	}
+	if grayscaleCount != 0 {
+		pauseThreshold = *(deployment.Spec.Replicas) - grayscaleCount
+	}
+
 	for _, targetRS := range oldRSs {
 		if totalScaledDown >= totalScaleDownCount {
 			// No further scaling required.
@@ -222,6 +232,10 @@ func (dc *DeploymentController) scaleDownOldReplicaSetsForRollingUpdate(allRSs [
 		newReplicasCount := *(targetRS.Spec.Replicas) - scaleDownCount
 		if newReplicasCount > *(targetRS.Spec.Replicas) {
 			return 0, fmt.Errorf("when scaling down old RS, got invalid request to scale down %s/%s %d -> %d", targetRS.Namespace, targetRS.Name, *(targetRS.Spec.Replicas), newReplicasCount)
+		}
+
+		if pauseThreshold != 0 && newReplicasCount < pauseThreshold {
+			break
 		}
 		_, _, err := dc.scaleReplicaSetAndRecordEvent(targetRS, newReplicasCount, deployment)
 		if err != nil {

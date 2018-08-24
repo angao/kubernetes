@@ -25,6 +25,8 @@ import (
 
 	"github.com/golang/glog"
 
+	"math"
+
 	apps "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -54,6 +56,9 @@ const (
 	// is deployment.spec.replicas + maxSurge. Used by the underlying replica sets to estimate their
 	// proportions in case the deployment has surge replicas.
 	MaxReplicasAnnotation = "deployment.kubernetes.io/max-replicas"
+
+	// GrayscaleAnnotation specify the deployment
+	GrayscaleAnnotation = "app.suning.com/grayscale"
 
 	// RollbackRevisionNotFound is not found rollback event reason
 	RollbackRevisionNotFound = "DeploymentRollbackRevisionNotFound"
@@ -837,12 +842,33 @@ func NewRSNewReplicas(deployment *apps.Deployment, allRSs []*apps.ReplicaSet, ne
 		scaleUpCount := maxTotalPods - currentPodCount
 		// Do not exceed the number of desired replicas.
 		scaleUpCount = int32(integer.IntMin(int(scaleUpCount), int(*(deployment.Spec.Replicas)-*(newRS.Spec.Replicas))))
-		return *(newRS.Spec.Replicas) + scaleUpCount, nil
+		newReplicas := *(newRS.Spec.Replicas) + scaleUpCount
+		pauseThreshold, err := GetGrayscaleCount(deployment)
+		if err != nil {
+			return 0, err
+		}
+		if pauseThreshold != 0 {
+			return integer.Int32Min(newReplicas, pauseThreshold), nil
+		}
+		return newReplicas, nil
 	case apps.RecreateDeploymentStrategyType:
 		return *(deployment.Spec.Replicas), nil
 	default:
 		return 0, fmt.Errorf("deployment type %v isn't supported", deployment.Spec.Strategy.Type)
 	}
+}
+
+// GetGrayscaleCount calculate the grayscale of deployment
+func GetGrayscaleCount(deployment *apps.Deployment) (int32, error) {
+	if grayscale, ok := deployment.Annotations[GrayscaleAnnotation]; ok {
+		percentage, err := strconv.ParseInt(grayscale, 10, 32)
+		if err != nil {
+			return 0, err
+		}
+		pauseThreshold := int32(math.Ceil(float64(int64((*deployment.Spec.Replicas)) * percentage / 100)))
+		return pauseThreshold, nil
+	}
+	return 0, nil
 }
 
 // IsSaturated checks if the new replica set is saturated by comparing its size with its deployment size.
