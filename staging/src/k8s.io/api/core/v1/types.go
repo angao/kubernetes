@@ -3942,6 +3942,19 @@ type NodeStatus struct {
 	// List of volumes that are attached to the node.
 	// +optional
 	VolumesAttached []AttachedVolume `json:"volumesAttached,omitempty" protobuf:"bytes,10,rep,name=volumesAttached"`
+
+	// List of ExtendedResources that are allocatable on this node
+	// values are names of ExtendedResources
+	// +optional
+	ExtendedResourceAllocatable []string `json:"extendedResourceAllocatable,omitempty" protobuf:"bytes,11,rep,name=extendedResourceAllocatable"`
+	// List of all ExtendedResources on this node
+	// values are names of ExtendedResources
+	// +optional
+	ExtendedResourceCapacity []string `json:"extendedResourceCapacity,omitempty" protobuf:"bytes,12,rep,name=extendedResourceCapacity"`
+	// List of ExtendedResources that were on this node, but removed now
+	// values are names of ExtendedResources
+	// +optional
+	ExtendedResourceRemoved []string `json:"extendedResourceRemoved,omitempty" protobuf:"bytes,13,rep,name=extendedResourceRemoved"`
 }
 
 type UniqueVolumeName string
