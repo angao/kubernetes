@@ -648,6 +648,8 @@ func BuildStorageFactory(s *options.ServerRunOptions, apiResourceConfig *servers
 			batch.Resource("cronjobs").WithVersion("v1beta1"),
 			storage.Resource("volumeattachments").WithVersion("v1beta1"),
 			admissionregistration.Resource("initializerconfigurations").WithVersion("v1alpha1"),
+			extensions.Resource("extendedresources").WithVersion("v1alpha1"),
+			extensions.Resource("extendedresourceclaims").WithVersion("v1alpha1"),
 		},
 		apiResourceConfig)
 	if err != nil {

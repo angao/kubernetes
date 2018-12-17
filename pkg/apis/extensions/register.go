@@ -63,6 +63,10 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&autoscaling.Scale{},
 		&networking.NetworkPolicy{},
 		&networking.NetworkPolicyList{},
+		&ExtendedResourceClaim{},
+		&ExtendedResourceClaimList{},
+		&ExtendedResource{},
+		&ExtendedResourceList{},
 	)
 	return nil
 }
