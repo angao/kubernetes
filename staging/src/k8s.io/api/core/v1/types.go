@@ -2277,6 +2277,10 @@ type Container struct {
 	// Default is false.
 	// +optional
 	TTY bool `json:"tty,omitempty" protobuf:"varint,18,opt,name=tty"`
+
+	// ExtendedResourceClaims is the claim names array users asked for this container
+	// +optional
+	ExtendedResourceClaims []string `json:"extendedResourceClaims,omitempty" protobuf:"bytes,22,rep,name=extendedResourceClaims"`
 }
 
 // Handler defines a specific action that should be taken

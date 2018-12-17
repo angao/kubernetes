@@ -2063,6 +2063,10 @@ type Container struct {
 	StdinOnce bool
 	// +optional
 	TTY bool
+
+	// ExtendedResourceClaims is the claim names array users asked for this container
+	// +optional
+	ExtendedResourceClaims []string
 }
 
 // Handler defines a specific action that should be taken
