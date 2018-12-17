@@ -18,20 +18,21 @@ package devicemanager
 
 import (
 	"github.com/golang/glog"
-
 	"k8s.io/apimachinery/pkg/util/sets"
 	pluginapi "k8s.io/kubernetes/pkg/kubelet/apis/deviceplugin/v1beta1"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 )
 
 type deviceAllocateInfo struct {
+	// resourceName is the raw resource name these devices belonging to
+	resourceName string
 	// deviceIds contains device Ids allocated to this container for the given resourceName.
 	deviceIds sets.String
 	// allocResp contains cached rpc AllocateResponse.
 	allocResp *pluginapi.ContainerAllocateResponse
 }
 
-type resourceAllocateInfo map[string]deviceAllocateInfo // Keyed by resourceName.
+type resourceAllocateInfo map[string]deviceAllocateInfo // Keyed by ExtendedResourceClaim name.
 type containerDevices map[string]resourceAllocateInfo   // Keyed by containerName.
 type podDevices map[string]containerDevices             // Keyed by podUID.
 
@@ -43,16 +44,17 @@ func (pdev podDevices) pods() sets.String {
 	return ret
 }
 
-func (pdev podDevices) insert(podUID, contName, resource string, devices sets.String, resp *pluginapi.ContainerAllocateResponse) {
+func (pdev podDevices) insert(podUID, contName, extendedResourceClaimName, resourceName string, devices sets.String, resp *pluginapi.ContainerAllocateResponse) {
 	if _, podExists := pdev[podUID]; !podExists {
 		pdev[podUID] = make(containerDevices)
 	}
 	if _, contExists := pdev[podUID][contName]; !contExists {
 		pdev[podUID][contName] = make(resourceAllocateInfo)
 	}
-	pdev[podUID][contName][resource] = deviceAllocateInfo{
-		deviceIds: devices,
-		allocResp: resp,
+	pdev[podUID][contName][extendedResourceClaimName] = deviceAllocateInfo{
+		resourceName: resourceName,
+		deviceIds:    devices,
+		allocResp:    resp,
 	}
 }
 
@@ -62,23 +64,23 @@ func (pdev podDevices) delete(pods []string) {
 	}
 }
 
-// Returns list of device Ids allocated to the given container for the given resource.
-// Returns nil if we don't have cached state for the given <podUID, contName, resource>.
-func (pdev podDevices) containerDevices(podUID, contName, resource string) sets.String {
+// Returns list of device Ids allocated to the given container for the given ercName.
+// Returns nil if we don't have cached state for the given <podUID, contName, ercName>.
+func (pdev podDevices) containerDevices(podUID, contName, ercName string) sets.String {
 	if _, podExists := pdev[podUID]; !podExists {
 		return nil
 	}
 	if _, contExists := pdev[podUID][contName]; !contExists {
 		return nil
 	}
-	devs, resourceExists := pdev[podUID][contName][resource]
+	devs, resourceExists := pdev[podUID][contName][ercName]
 	if !resourceExists {
 		return nil
 	}
 	return devs.deviceIds
 }
 
-// Populates allocatedResources with the device resources allocated to the specified <podUID, contName>.
+/*// Populates allocatedResources with the device resources allocated to the specified <podUID, contName>.
 func (pdev podDevices) addContainerAllocatedResources(podUID, contName string, allocatedResources map[string]sets.String) {
 	containers, exists := pdev[podUID]
 	if !exists {
@@ -106,19 +108,19 @@ func (pdev podDevices) removeContainerAllocatedResources(podUID, contName string
 	for resource, devices := range resources {
 		allocatedResources[resource] = allocatedResources[resource].Difference(devices.deviceIds)
 	}
-}
+}*/
 
 // Returns all of devices allocated to the pods being tracked, keyed by resourceName.
 func (pdev podDevices) devices() map[string]sets.String {
 	ret := make(map[string]sets.String)
 	for _, containerDevices := range pdev {
 		for _, resources := range containerDevices {
-			for resource, devices := range resources {
-				if _, exists := ret[resource]; !exists {
-					ret[resource] = sets.NewString()
+			for _, devices := range resources {
+				if _, exists := ret[devices.resourceName]; !exists {
+					ret[devices.resourceName] = sets.NewString()
 				}
 				if devices.allocResp != nil {
-					ret[resource] = ret[resource].Union(devices.deviceIds)
+					ret[devices.resourceName] = ret[devices.resourceName].Union(devices.deviceIds)
 				}
 			}
 		}
@@ -130,6 +132,7 @@ func (pdev podDevices) devices() map[string]sets.String {
 type podDevicesCheckpointEntry struct {
 	PodUID        string
 	ContainerName string
+	ERCName       string
 	ResourceName  string
 	DeviceIDs     []string
 	AllocResp     []byte
@@ -140,19 +143,26 @@ func (pdev podDevices) toCheckpointData() []podDevicesCheckpointEntry {
 	var data []podDevicesCheckpointEntry
 	for podUID, containerDevices := range pdev {
 		for conName, resources := range containerDevices {
-			for resource, devices := range resources {
+			for ercName, devices := range resources {
 				devIds := devices.deviceIds.UnsortedList()
 				if devices.allocResp == nil {
-					glog.Errorf("Can't marshal allocResp for %v %v %v: allocation response is missing", podUID, conName, resource)
+					glog.Errorf("Can't marshal allocResp for %v %v %v: allocation response is missing", podUID, conName, ercName)
 					continue
 				}
 
 				allocResp, err := devices.allocResp.Marshal()
 				if err != nil {
-					glog.Errorf("Can't marshal allocResp for %v %v %v: %v", podUID, conName, resource, err)
+					glog.Errorf("Can't marshal allocResp for %v %v %v: %v", podUID, conName, ercName, err)
 					continue
 				}
-				data = append(data, podDevicesCheckpointEntry{podUID, conName, resource, devIds, allocResp})
+				data = append(data, podDevicesCheckpointEntry{
+					PodUID:        podUID,
+					ContainerName: conName,
+					ERCName:       ercName,
+					ResourceName:  devices.resourceName,
+					DeviceIDs:     devIds,
+					AllocResp:     allocResp,
+				})
 			}
 		}
 	}
@@ -163,7 +173,7 @@ func (pdev podDevices) toCheckpointData() []podDevicesCheckpointEntry {
 func (pdev podDevices) fromCheckpointData(data []podDevicesCheckpointEntry) {
 	for _, entry := range data {
 		glog.V(2).Infof("Get checkpoint entry: %v %v %v %v %v\n",
-			entry.PodUID, entry.ContainerName, entry.ResourceName, entry.DeviceIDs, entry.AllocResp)
+			entry.PodUID, entry.ContainerName, entry.ERCName, entry.DeviceIDs, entry.AllocResp)
 		devIDs := sets.NewString()
 		for _, devID := range entry.DeviceIDs {
 			devIDs.Insert(devID)
@@ -171,10 +181,10 @@ func (pdev podDevices) fromCheckpointData(data []podDevicesCheckpointEntry) {
 		allocResp := &pluginapi.ContainerAllocateResponse{}
 		err := allocResp.Unmarshal(entry.AllocResp)
 		if err != nil {
-			glog.Errorf("Can't unmarshal allocResp for %v %v %v: %v", entry.PodUID, entry.ContainerName, entry.ResourceName, err)
+			glog.Errorf("Can't unmarshal allocResp for %v %v %v: %v", entry.PodUID, entry.ContainerName, entry.ERCName, err)
 			continue
 		}
-		pdev.insert(entry.PodUID, entry.ContainerName, entry.ResourceName, devIDs, allocResp)
+		pdev.insert(entry.PodUID, entry.ContainerName, entry.ERCName, entry.ResourceName, devIDs, allocResp)
 	}
 }
 

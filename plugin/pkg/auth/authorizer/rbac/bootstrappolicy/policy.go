@@ -98,6 +98,8 @@ func NodeRules() []rbac.PolicyRule {
 		rbac.NewRule("create").Groups(authenticationGroup).Resources("tokenreviews").RuleOrDie(),
 		rbac.NewRule("create").Groups(authorizationGroup).Resources("subjectaccessreviews", "localsubjectaccessreviews").RuleOrDie(),
 
+		rbac.NewRule("create", "get", "list", "update", "delete", "watch").Groups(extensionsGroup).Resources("extendedresources", "extendedresourceclaims").RuleOrDie(),
+
 		// Needed to build serviceLister, to populate env vars for services
 		rbac.NewRule(Read...).Groups(legacyGroup).Resources("services").RuleOrDie(),
 
@@ -237,7 +239,6 @@ func ClusterRoles() []rbac.ClusterRole {
 				rbac.NewRule("impersonate").Groups(legacyGroup).Resources("serviceaccounts").RuleOrDie(),
 
 				rbac.NewRule(ReadWrite...).Groups(appsGroup).Resources("statefulsets",
-					"controllerrevisions",
 					"daemonsets",
 					"deployments", "deployments/scale", "deployments/rollback",
 					"replicasets", "replicasets/scale").RuleOrDie(),
@@ -249,7 +250,7 @@ func ClusterRoles() []rbac.ClusterRole {
 				rbac.NewRule(ReadWrite...).Groups(extensionsGroup).Resources("daemonsets",
 					"deployments", "deployments/scale", "deployments/rollback", "ingresses",
 					"replicasets", "replicasets/scale", "replicationcontrollers/scale",
-					"networkpolicies").RuleOrDie(),
+					"networkpolicies", "extendedresources", "extendedresourceclaims").RuleOrDie(),
 
 				rbac.NewRule(ReadWrite...).Groups(policyGroup).Resources("poddisruptionbudgets").RuleOrDie(),
 
@@ -277,7 +278,6 @@ func ClusterRoles() []rbac.ClusterRole {
 				rbac.NewRule("impersonate").Groups(legacyGroup).Resources("serviceaccounts").RuleOrDie(),
 
 				rbac.NewRule(ReadWrite...).Groups(appsGroup).Resources("statefulsets",
-					"controllerrevisions",
 					"daemonsets",
 					"deployments", "deployments/scale", "deployments/rollback",
 					"replicasets", "replicasets/scale").RuleOrDie(),
@@ -289,7 +289,7 @@ func ClusterRoles() []rbac.ClusterRole {
 				rbac.NewRule(ReadWrite...).Groups(extensionsGroup).Resources("daemonsets",
 					"deployments", "deployments/scale", "deployments/rollback", "ingresses",
 					"replicasets", "replicasets/scale", "replicationcontrollers/scale",
-					"networkpolicies").RuleOrDie(),
+					"networkpolicies", "extendedresources", "extendedresourceclaims").RuleOrDie(),
 
 				rbac.NewRule(ReadWrite...).Groups(policyGroup).Resources("poddisruptionbudgets").RuleOrDie(),
 
@@ -310,7 +310,6 @@ func ClusterRoles() []rbac.ClusterRole {
 				rbac.NewRule(Read...).Groups(legacyGroup).Resources("namespaces").RuleOrDie(),
 
 				rbac.NewRule(Read...).Groups(appsGroup).Resources("statefulsets",
-					"controllerrevisions",
 					"daemonsets",
 					"deployments", "deployments/scale",
 					"replicasets", "replicasets/scale").RuleOrDie(),
@@ -321,7 +320,7 @@ func ClusterRoles() []rbac.ClusterRole {
 
 				rbac.NewRule(Read...).Groups(extensionsGroup).Resources("daemonsets", "deployments", "deployments/scale",
 					"ingresses", "replicasets", "replicasets/scale", "replicationcontrollers/scale",
-					"networkpolicies").RuleOrDie(),
+					"networkpolicies", "extendedresources", "extendedresourceclaims").RuleOrDie(),
 
 				rbac.NewRule(Read...).Groups(policyGroup).Resources("poddisruptionbudgets").RuleOrDie(),
 
@@ -433,6 +432,7 @@ func ClusterRoles() []rbac.ClusterRole {
 				// things that select pods
 				rbac.NewRule(Read...).Groups(legacyGroup).Resources("services", "replicationcontrollers").RuleOrDie(),
 				rbac.NewRule(Read...).Groups(appsGroup, extensionsGroup).Resources("replicasets").RuleOrDie(),
+				rbac.NewRule("create", "get", "list", "watch").Groups(extensionsGroup).Resources("extendedresources", "extendedresourceclaims").RuleOrDie(),
 				rbac.NewRule(Read...).Groups(appsGroup).Resources("statefulsets").RuleOrDie(),
 				// things that pods use or applies to them
 				rbac.NewRule(Read...).Groups(policyGroup).Resources("poddisruptionbudgets").RuleOrDie(),
@@ -459,26 +459,6 @@ func ClusterRoles() []rbac.ClusterRole {
 				rbac.NewRule("watch").Groups(legacyGroup).Resources("events").RuleOrDie(),
 
 				eventsRule(),
-			},
-		},
-		{
-			// a role for the csi external provisioner
-			ObjectMeta: metav1.ObjectMeta{Name: "system:csi-external-provisioner"},
-			Rules: []rbac.PolicyRule{
-				rbac.NewRule("create", "delete", "get", "list", "watch").Groups(legacyGroup).Resources("persistentvolumes").RuleOrDie(),
-				rbac.NewRule("get", "list", "watch", "update", "patch").Groups(legacyGroup).Resources("persistentvolumeclaims").RuleOrDie(),
-				rbac.NewRule("list", "watch").Groups(storageGroup).Resources("storageclasses").RuleOrDie(),
-				rbac.NewRule("get", "list", "watch", "create", "update", "patch").Groups(legacyGroup).Resources("events").RuleOrDie(),
-			},
-		},
-		{
-			// a role for the csi external attacher
-			ObjectMeta: metav1.ObjectMeta{Name: "system:csi-external-attacher"},
-			Rules: []rbac.PolicyRule{
-				rbac.NewRule("get", "list", "watch", "update", "patch").Groups(legacyGroup).Resources("persistentvolumes").RuleOrDie(),
-				rbac.NewRule("get", "list", "watch").Groups(legacyGroup).Resources("nodes").RuleOrDie(),
-				rbac.NewRule("get", "list", "watch", "update", "patch").Groups(storageGroup).Resources("volumeattachments").RuleOrDie(),
-				rbac.NewRule("get", "list", "watch", "create", "update", "patch").Groups(legacyGroup).Resources("events").RuleOrDie(),
 			},
 		},
 		{

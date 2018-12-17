@@ -29,14 +29,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/api/core/v1"
+	apiextensions "k8s.io/api/extensions/v1alpha1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/uuid"
+	fakeclient "k8s.io/client-go/kubernetes/fake"
 	pluginapi "k8s.io/kubernetes/pkg/kubelet/apis/deviceplugin/v1beta1"
 	"k8s.io/kubernetes/pkg/kubelet/lifecycle"
 	utilstore "k8s.io/kubernetes/pkg/kubelet/util/store"
-	"k8s.io/kubernetes/pkg/scheduler/schedulercache"
 	utilfs "k8s.io/kubernetes/pkg/util/filesystem"
 )
 
@@ -58,7 +59,8 @@ func TestNewManagerImpl(t *testing.T) {
 	socketDir, socketName, _, err := tmpSocketDir()
 	require.NoError(t, err)
 	defer os.RemoveAll(socketDir)
-	_, err = newManagerImpl(socketName)
+	fakeClient := fakeclient.NewSimpleClientset()
+	_, err = newManagerImpl(fakeClient, socketName)
 	require.NoError(t, err)
 	os.RemoveAll(socketDir)
 }
@@ -150,7 +152,8 @@ func TestDevicePluginReRegistration(t *testing.T) {
 }
 
 func setup(t *testing.T, devs []*pluginapi.Device, callback monitorCallback, socketName string, pluginSocketName string) (Manager, *Stub) {
-	m, err := newManagerImpl(socketName)
+	fakeClient := fakeclient.NewSimpleClientset()
+	m, err := newManagerImpl(fakeClient, socketName)
 	require.NoError(t, err)
 
 	m.callback = callback
@@ -158,7 +161,7 @@ func setup(t *testing.T, devs []*pluginapi.Device, callback monitorCallback, soc
 	activePods := func() []*v1.Pod {
 		return []*v1.Pod{}
 	}
-	err = m.Start(activePods, &sourcesReadyStub{})
+	err = m.Start(&v1.Node{}, activePods, &sourcesReadyStub{})
 	require.NoError(t, err)
 
 	p := NewDevicePluginStub(devs, pluginSocketName)
@@ -177,7 +180,8 @@ func TestUpdateCapacityAllocatable(t *testing.T) {
 	socketDir, socketName, _, err := tmpSocketDir()
 	require.NoError(t, err)
 	defer os.RemoveAll(socketDir)
-	testManager, err := newManagerImpl(socketName)
+	fakeClient := fakeclient.NewSimpleClientset()
+	testManager, err := newManagerImpl(fakeClient, socketName)
 	as := assert.New(t)
 	as.NotNil(testManager)
 	as.Nil(err)
@@ -196,23 +200,19 @@ func TestUpdateCapacityAllocatable(t *testing.T) {
 	testManager.endpoints[resourceName1] = e1
 	callback(resourceName1, devs, []pluginapi.Device{}, []pluginapi.Device{})
 	capacity, allocatable, removedResources := testManager.GetCapacity()
-	resource1Capacity, ok := capacity[v1.ResourceName(resourceName1)]
-	as.True(ok)
-	resource1Allocatable, ok := allocatable[v1.ResourceName(resourceName1)]
-	as.True(ok)
-	as.Equal(int64(3), resource1Capacity.Value())
-	as.Equal(int64(2), resource1Allocatable.Value())
+
+	//capacity = []string{"domain1.com-resource1-Device1", "domain1.com-resource1-Device2", "domain1.com-resource1-Device3"}
+	as.True(arrayEqual([]string{"domain1.com-resource1-Device1", "domain1.com-resource1-Device2", "domain1.com-resource1-Device3"}, capacity))
+	//allocatable = []string{"domain1.com-resource1-Device1", "domain1.com-resource1-Device2"}
+	as.True(arrayEqual([]string{"domain1.com-resource1-Device1", "domain1.com-resource1-Device2"}, allocatable))
 	as.Equal(0, len(removedResources))
 
 	// Deletes an unhealthy device should NOT change allocatable but change capacity.
 	callback(resourceName1, []pluginapi.Device{}, []pluginapi.Device{}, []pluginapi.Device{devs[2]})
 	capacity, allocatable, removedResources = testManager.GetCapacity()
-	resource1Capacity, ok = capacity[v1.ResourceName(resourceName1)]
-	as.True(ok)
-	resource1Allocatable, ok = allocatable[v1.ResourceName(resourceName1)]
-	as.True(ok)
-	as.Equal(int64(2), resource1Capacity.Value())
-	as.Equal(int64(2), resource1Allocatable.Value())
+
+	as.True(arrayEqual([]string{"domain1.com-resource1-Device1", "domain1.com-resource1-Device2"}, capacity))
+	as.True(arrayEqual([]string{"domain1.com-resource1-Device1", "domain1.com-resource1-Device2"}, allocatable))
 	as.Equal(0, len(removedResources))
 
 	// Updates a healthy device to unhealthy should reduce allocatable by 1.
@@ -220,23 +220,15 @@ func TestUpdateCapacityAllocatable(t *testing.T) {
 	dev2.Health = pluginapi.Unhealthy
 	callback(resourceName1, []pluginapi.Device{}, []pluginapi.Device{dev2}, []pluginapi.Device{})
 	capacity, allocatable, removedResources = testManager.GetCapacity()
-	resource1Capacity, ok = capacity[v1.ResourceName(resourceName1)]
-	as.True(ok)
-	resource1Allocatable, ok = allocatable[v1.ResourceName(resourceName1)]
-	as.True(ok)
-	as.Equal(int64(2), resource1Capacity.Value())
-	as.Equal(int64(1), resource1Allocatable.Value())
+	as.True(arrayEqual([]string{"domain1.com-resource1-Device1", "domain1.com-resource1-Device2"}, capacity))
+	as.True(arrayEqual([]string{"domain1.com-resource1-Device1"}, allocatable))
 	as.Equal(0, len(removedResources))
 
 	// Deletes a healthy device should reduce capacity and allocatable by 1.
 	callback(resourceName1, []pluginapi.Device{}, []pluginapi.Device{}, []pluginapi.Device{devs[0]})
 	capacity, allocatable, removedResources = testManager.GetCapacity()
-	resource1Capacity, ok = capacity[v1.ResourceName(resourceName1)]
-	as.True(ok)
-	resource1Allocatable, ok = allocatable[v1.ResourceName(resourceName1)]
-	as.True(ok)
-	as.Equal(int64(0), resource1Allocatable.Value())
-	as.Equal(int64(1), resource1Capacity.Value())
+	as.True(arrayEqual([]string{"domain1.com-resource1-Device2"}, capacity))
+	as.Equal(0, len(allocatable))
 	as.Equal(0, len(removedResources))
 
 	// Tests adding another resource.
@@ -245,26 +237,17 @@ func TestUpdateCapacityAllocatable(t *testing.T) {
 	testManager.endpoints[resourceName2] = e2
 	callback(resourceName2, devs, []pluginapi.Device{}, []pluginapi.Device{})
 	capacity, allocatable, removedResources = testManager.GetCapacity()
-	as.Equal(2, len(capacity))
-	resource2Capacity, ok := capacity[v1.ResourceName(resourceName2)]
-	as.True(ok)
-	resource2Allocatable, ok := allocatable[v1.ResourceName(resourceName2)]
-	as.True(ok)
-	as.Equal(int64(3), resource2Capacity.Value())
-	as.Equal(int64(2), resource2Allocatable.Value())
+
+	as.True(arrayEqual([]string{"domain1.com-resource1-Device2", "resource2-Device1", "resource2-Device2", "resource2-Device3"}, capacity))
+	as.True(arrayEqual([]string{"resource2-Device1", "resource2-Device2"}, allocatable))
 	as.Equal(0, len(removedResources))
 
 	// Expires resourceName1 endpoint. Verifies testManager.GetCapacity() reports that resourceName1
 	// is removed from capacity and it no longer exists in healthyDevices after the call.
 	e1.setStopTime(time.Now().Add(-1*endpointStopGracePeriod - time.Duration(10)*time.Second))
 	capacity, allocatable, removed := testManager.GetCapacity()
-	as.Equal([]string{resourceName1}, removed)
-	_, ok = capacity[v1.ResourceName(resourceName1)]
-	as.False(ok)
-	val, ok := capacity[v1.ResourceName(resourceName2)]
-	as.True(ok)
-	as.Equal(int64(3), val.Value())
-	_, ok = testManager.healthyDevices[resourceName1]
+	as.Equal([]string{formatResourceName(resourceName1) + "-" + "Device2"}, removed)
+	_, ok := testManager.healthyDevices[resourceName1]
 	as.False(ok)
 	_, ok = testManager.unhealthyDevices[resourceName1]
 	as.False(ok)
@@ -284,33 +267,27 @@ func TestUpdateCapacityAllocatable(t *testing.T) {
 	// correctly updated.
 	testManager.markResourceUnhealthy(resourceName2)
 	capacity, allocatable, removed = testManager.GetCapacity()
-	val, ok = capacity[v1.ResourceName(resourceName2)]
-	as.True(ok)
-	as.Equal(int64(3), val.Value())
-	val, ok = allocatable[v1.ResourceName(resourceName2)]
-	as.True(ok)
-	as.Equal(int64(0), val.Value())
+	as.Equal(3, len(capacity))
+	as.Equal(0, len(allocatable))
 	as.Empty(removed)
-	// Writes and re-reads checkpoints. Verifies we create a stopped endpoint
-	// for resourceName2, its capacity is set to zero, and we still consider
-	// it as a DevicePlugin resource. This makes sure any pod that was scheduled
-	// during the time of propagating capacity change to the scheduler will be
-	// properly rejected instead of being incorrectly started.
-	err = testManager.writeCheckpoint()
-	as.Nil(err)
-	testManager.healthyDevices = make(map[string]sets.String)
-	testManager.unhealthyDevices = make(map[string]sets.String)
-	err = testManager.readCheckpoint()
-	as.Nil(err)
-	as.Equal(1, len(testManager.endpoints))
-	_, ok = testManager.endpoints[resourceName2]
-	as.True(ok)
-	capacity, allocatable, removed = testManager.GetCapacity()
-	val, ok = capacity[v1.ResourceName(resourceName2)]
-	as.True(ok)
-	as.Equal(int64(0), val.Value())
-	as.Empty(removed)
-	as.True(testManager.isDevicePluginResource(resourceName2))
+}
+
+func arrayEqual(expected, actual []string) bool {
+	if len(expected) != len(actual) {
+		return false
+	}
+	expSet := sets.NewString()
+	for _, v := range expected {
+		expSet.Insert(v)
+	}
+
+	for _, v := range actual {
+		if !expSet.Has(v) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func constructDevices(devices []string) sets.String {
@@ -362,20 +339,20 @@ func TestCheckpoint(t *testing.T) {
 	}
 	testManager.store, _ = utilstore.NewFileStore("/tmp/", utilfs.DefaultFs{})
 
-	testManager.podDevices.insert("pod1", "con1", resourceName1,
+	testManager.podDevices.insert("pod1", "con1", "erc1", resourceName1,
 		constructDevices([]string{"dev1", "dev2"}),
 		constructAllocResp(map[string]string{"/dev/r1dev1": "/dev/r1dev1", "/dev/r1dev2": "/dev/r1dev2"},
 			map[string]string{"/home/r1lib1": "/usr/r1lib1"}, map[string]string{}))
-	testManager.podDevices.insert("pod1", "con1", resourceName2,
+	testManager.podDevices.insert("pod1", "con1", "erc2", resourceName2,
 		constructDevices([]string{"dev1", "dev2"}),
 		constructAllocResp(map[string]string{"/dev/r2dev1": "/dev/r2dev1", "/dev/r2dev2": "/dev/r2dev2"},
 			map[string]string{"/home/r2lib1": "/usr/r2lib1"},
 			map[string]string{"r2devices": "dev1 dev2"}))
-	testManager.podDevices.insert("pod1", "con2", resourceName1,
+	testManager.podDevices.insert("pod1", "con2", "erc3", resourceName1,
 		constructDevices([]string{"dev3"}),
 		constructAllocResp(map[string]string{"/dev/r1dev3": "/dev/r1dev3"},
 			map[string]string{"/home/r1lib1": "/usr/r1lib1"}, map[string]string{}))
-	testManager.podDevices.insert("pod2", "con1", resourceName1,
+	testManager.podDevices.insert("pod2", "con1", "erc4", resourceName1,
 		constructDevices([]string{"dev4"}),
 		constructAllocResp(map[string]string{"/dev/r1dev4": "/dev/r1dev4"},
 			map[string]string{"/home/r1lib1": "/usr/r1lib1"}, map[string]string{}))
@@ -462,7 +439,7 @@ func (m *MockEndpoint) isStopped() bool { return false }
 
 func (m *MockEndpoint) stopGracePeriodExpired() bool { return false }
 
-func makePod(limits v1.ResourceList) *v1.Pod {
+func makePod(ercNames []string) *v1.Pod {
 	return &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			UID: uuid.NewUUID(),
@@ -470,9 +447,7 @@ func makePod(limits v1.ResourceList) *v1.Pod {
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
 				{
-					Resources: v1.ResourceRequirements{
-						Limits: limits,
-					},
+					ExtendedResourceClaims: ercNames,
 				},
 			},
 		},
@@ -528,17 +503,6 @@ func getTestManager(tmpDir string, activePods ActivePodsFunc, testRes []TestReso
 	return testManager
 }
 
-func getTestNodeInfo(allocatable v1.ResourceList) *schedulercache.NodeInfo {
-	cachedNode := &v1.Node{
-		Status: v1.NodeStatus{
-			Allocatable: allocatable,
-		},
-	}
-	nodeInfo := &schedulercache.NodeInfo{}
-	nodeInfo.SetNode(cachedNode)
-	return nodeInfo
-}
-
 type TestResource struct {
 	resourceName     string
 	resourceQuantity resource.Quantity
@@ -567,19 +531,62 @@ func TestPodContainerDeviceAllocation(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("", "checkpoint")
 	as.Nil(err)
 	defer os.RemoveAll(tmpDir)
-	nodeInfo := getTestNodeInfo(v1.ResourceList{})
 	pluginOpts := make(map[string]*pluginapi.DevicePluginOptions)
 	testManager := getTestManager(tmpDir, podsStub.getActivePods, testResources, pluginOpts)
+	fakeCli := fakeclient.NewSimpleClientset()
+	testManager.client = fakeCli
+	// fakeCli.ExtensionsV1alpha1().ExtendedResourceClaims("").Create()
+
+	erc11 := &apiextensions.ExtendedResourceClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "erc11",
+		},
+		Spec: apiextensions.ExtendedResourceClaimSpec{
+			ExtendedResourceNames: []string{"domain1.com/resource1-dev1", "domain1.com/resource1-dev2"},
+			RawResourceName:       res1.resourceName,
+			ExtendedResourceNum:   2,
+		},
+	}
+	erc12 := &apiextensions.ExtendedResourceClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "erc12",
+		},
+		Spec: apiextensions.ExtendedResourceClaimSpec{
+			ExtendedResourceNames: []string{"domain2.com/resource2-dev3"},
+			RawResourceName:       res2.resourceName,
+			ExtendedResourceNum:   1,
+		},
+	}
+	erc2 := &apiextensions.ExtendedResourceClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "erc2",
+		},
+		Spec: apiextensions.ExtendedResourceClaimSpec{
+			ExtendedResourceNames: []string{"domain1.com/resource1-dev3"},
+			RawResourceName:       res1.resourceName,
+			ExtendedResourceNum:   1,
+		},
+	}
+	erc3 := &apiextensions.ExtendedResourceClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "erc3",
+		},
+		Spec: apiextensions.ExtendedResourceClaimSpec{
+			ExtendedResourceNames: []string{"domain2.com/resource2-dev4"},
+			RawResourceName:       res2.resourceName,
+			ExtendedResourceNum:   1,
+		},
+	}
+
+	fakeCli.ExtensionsV1alpha1().ExtendedResourceClaims(erc11.Namespace).Create(erc11)
+	fakeCli.ExtensionsV1alpha1().ExtendedResourceClaims(erc12.Namespace).Create(erc12)
+	fakeCli.ExtensionsV1alpha1().ExtendedResourceClaims(erc2.Namespace).Create(erc2)
+	fakeCli.ExtensionsV1alpha1().ExtendedResourceClaims(erc3.Namespace).Create(erc3)
 
 	testPods := []*v1.Pod{
-		makePod(v1.ResourceList{
-			v1.ResourceName(res1.resourceName): res1.resourceQuantity,
-			v1.ResourceName("cpu"):             res1.resourceQuantity,
-			v1.ResourceName(res2.resourceName): res2.resourceQuantity}),
-		makePod(v1.ResourceList{
-			v1.ResourceName(res1.resourceName): res2.resourceQuantity}),
-		makePod(v1.ResourceList{
-			v1.ResourceName(res2.resourceName): res2.resourceQuantity}),
+		makePod([]string{"erc11", "erc12"}),
+		makePod([]string{"erc2"}),
+		makePod([]string{"erc3"}),
 	}
 	testCases := []struct {
 		description               string
@@ -595,7 +602,7 @@ func TestPodContainerDeviceAllocation(t *testing.T) {
 			expectedContainerOptsLen:  []int{3, 2, 2},
 			expectedAllocatedResName1: 2,
 			expectedAllocatedResName2: 1,
-			expErr: nil,
+			expErr:                    nil,
 		},
 		{
 			description:               "Requesting to create a pod without enough resources should fail",
@@ -603,7 +610,7 @@ func TestPodContainerDeviceAllocation(t *testing.T) {
 			expectedContainerOptsLen:  nil,
 			expectedAllocatedResName1: 2,
 			expectedAllocatedResName2: 1,
-			expErr: fmt.Errorf("requested number of devices unavailable for domain1.com/resource1. Requested: 1, Available: 0"),
+			expErr:                    fmt.Errorf("requested number of devices unavailable for domain1.com/resource1. Requested: 1, Available: 0"),
 		},
 		{
 			description:               "Successful allocation of all available Res1 resources and Res2 resources",
@@ -611,7 +618,7 @@ func TestPodContainerDeviceAllocation(t *testing.T) {
 			expectedContainerOptsLen:  []int{0, 0, 1},
 			expectedAllocatedResName1: 2,
 			expectedAllocatedResName2: 2,
-			expErr: nil,
+			expErr:                    nil,
 		},
 	}
 	activePods := []*v1.Pod{}
@@ -619,7 +626,7 @@ func TestPodContainerDeviceAllocation(t *testing.T) {
 		pod := testCase.testPod
 		activePods = append(activePods, pod)
 		podsStub.updateActivePods(activePods)
-		err := testManager.Allocate(nodeInfo, &lifecycle.PodAdmitAttributes{Pod: pod})
+		err := testManager.Allocate(&lifecycle.PodAdmitAttributes{Pod: pod})
 		if !reflect.DeepEqual(err, testCase.expErr) {
 			t.Errorf("DevicePluginManager error (%v). expected error: %v but got: %v",
 				testCase.description, testCase.expErr, err)
@@ -645,12 +652,12 @@ func TestInitContainerDeviceAllocation(t *testing.T) {
 	res1 := TestResource{
 		resourceName:     "domain1.com/resource1",
 		resourceQuantity: *resource.NewQuantity(int64(2), resource.DecimalSI),
-		devs:             []string{"dev1", "dev2"},
+		devs:             []string{"dev1", "dev2", "dev3", "dev4", "dev5"},
 	}
 	res2 := TestResource{
 		resourceName:     "domain2.com/resource2",
 		resourceQuantity: *resource.NewQuantity(int64(1), resource.DecimalSI),
-		devs:             []string{"dev3", "dev4"},
+		devs:             []string{"dev6", "dev7"},
 	}
 	testResources := make([]TestResource, 2)
 	testResources = append(testResources, res1)
@@ -659,12 +666,83 @@ func TestInitContainerDeviceAllocation(t *testing.T) {
 	podsStub := activePodsStub{
 		activePods: []*v1.Pod{},
 	}
-	nodeInfo := getTestNodeInfo(v1.ResourceList{})
 	tmpDir, err := ioutil.TempDir("", "checkpoint")
 	as.Nil(err)
 	defer os.RemoveAll(tmpDir)
 	pluginOpts := make(map[string]*pluginapi.DevicePluginOptions)
 	testManager := getTestManager(tmpDir, podsStub.getActivePods, testResources, pluginOpts)
+
+	fakeCli := fakeclient.NewSimpleClientset()
+	testManager.client = fakeCli
+	// fakeCli.ExtensionsV1alpha1().ExtendedResourceClaims("").Create()
+
+	erc1 := &apiextensions.ExtendedResourceClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "erc1",
+		},
+		Spec: apiextensions.ExtendedResourceClaimSpec{
+			ExtendedResourceNames: []string{"domain1.com/resource1-dev1"},
+			RawResourceName:       res1.resourceName,
+			ExtendedResourceNum:   1,
+		},
+	}
+	erc2 := &apiextensions.ExtendedResourceClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "erc2",
+		},
+		Spec: apiextensions.ExtendedResourceClaimSpec{
+			ExtendedResourceNames: []string{"domain1.com/resource1-dev2", "domain1.com/resource1-dev3"},
+			RawResourceName:       res1.resourceName,
+			ExtendedResourceNum:   2,
+		},
+	}
+	erc3 := &apiextensions.ExtendedResourceClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "erc3",
+		},
+		Spec: apiextensions.ExtendedResourceClaimSpec{
+			ExtendedResourceNames: []string{"domain1.com/resource1-dev4"},
+			RawResourceName:       res1.resourceName,
+			ExtendedResourceNum:   1,
+		},
+	}
+	erc4 := &apiextensions.ExtendedResourceClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "erc4",
+		},
+		Spec: apiextensions.ExtendedResourceClaimSpec{
+			ExtendedResourceNames: []string{"domain2.com/resource2-dev6"},
+			RawResourceName:       res2.resourceName,
+			ExtendedResourceNum:   1,
+		},
+	}
+	erc5 := &apiextensions.ExtendedResourceClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "erc5",
+		},
+		Spec: apiextensions.ExtendedResourceClaimSpec{
+			ExtendedResourceNames: []string{"domain1.com/resource1-dev5"},
+			RawResourceName:       res1.resourceName,
+			ExtendedResourceNum:   1,
+		},
+	}
+	erc6 := &apiextensions.ExtendedResourceClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "erc6",
+		},
+		Spec: apiextensions.ExtendedResourceClaimSpec{
+			ExtendedResourceNames: []string{"domain2.com/resource2-dev7"},
+			RawResourceName:       res2.resourceName,
+			ExtendedResourceNum:   1,
+		},
+	}
+
+	fakeCli.ExtensionsV1alpha1().ExtendedResourceClaims(erc1.Namespace).Create(erc1)
+	fakeCli.ExtensionsV1alpha1().ExtendedResourceClaims(erc2.Namespace).Create(erc2)
+	fakeCli.ExtensionsV1alpha1().ExtendedResourceClaims(erc3.Namespace).Create(erc3)
+	fakeCli.ExtensionsV1alpha1().ExtendedResourceClaims(erc4.Namespace).Create(erc4)
+	fakeCli.ExtensionsV1alpha1().ExtendedResourceClaims(erc5.Namespace).Create(erc5)
+	fakeCli.ExtensionsV1alpha1().ExtendedResourceClaims(erc6.Namespace).Create(erc6)
 
 	podWithPluginResourcesInInitContainers := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -673,107 +751,44 @@ func TestInitContainerDeviceAllocation(t *testing.T) {
 		Spec: v1.PodSpec{
 			InitContainers: []v1.Container{
 				{
-					Name: string(uuid.NewUUID()),
-					Resources: v1.ResourceRequirements{
-						Limits: v1.ResourceList{
-							v1.ResourceName(res1.resourceName): res2.resourceQuantity,
-						},
-					},
+					Name:                   string(uuid.NewUUID()),
+					ExtendedResourceClaims: []string{"erc1"},
 				},
 				{
-					Name: string(uuid.NewUUID()),
-					Resources: v1.ResourceRequirements{
-						Limits: v1.ResourceList{
-							v1.ResourceName(res1.resourceName): res1.resourceQuantity,
-						},
-					},
+					Name:                   string(uuid.NewUUID()),
+					ExtendedResourceClaims: []string{"erc2"},
 				},
 			},
 			Containers: []v1.Container{
 				{
-					Name: string(uuid.NewUUID()),
-					Resources: v1.ResourceRequirements{
-						Limits: v1.ResourceList{
-							v1.ResourceName(res1.resourceName): res2.resourceQuantity,
-							v1.ResourceName(res2.resourceName): res2.resourceQuantity,
-						},
-					},
+					Name:                   string(uuid.NewUUID()),
+					ExtendedResourceClaims: []string{"erc3", "erc4"},
 				},
 				{
-					Name: string(uuid.NewUUID()),
-					Resources: v1.ResourceRequirements{
-						Limits: v1.ResourceList{
-							v1.ResourceName(res1.resourceName): res2.resourceQuantity,
-							v1.ResourceName(res2.resourceName): res2.resourceQuantity,
-						},
-					},
+					Name:                   string(uuid.NewUUID()),
+					ExtendedResourceClaims: []string{"erc5", "erc6"},
 				},
 			},
 		},
 	}
 	podsStub.updateActivePods([]*v1.Pod{podWithPluginResourcesInInitContainers})
-	err = testManager.Allocate(nodeInfo, &lifecycle.PodAdmitAttributes{Pod: podWithPluginResourcesInInitContainers})
+	err = testManager.Allocate(&lifecycle.PodAdmitAttributes{Pod: podWithPluginResourcesInInitContainers})
 	as.Nil(err)
 	podUID := string(podWithPluginResourcesInInitContainers.UID)
 	initCont1 := podWithPluginResourcesInInitContainers.Spec.InitContainers[0].Name
 	initCont2 := podWithPluginResourcesInInitContainers.Spec.InitContainers[1].Name
 	normalCont1 := podWithPluginResourcesInInitContainers.Spec.Containers[0].Name
 	normalCont2 := podWithPluginResourcesInInitContainers.Spec.Containers[1].Name
-	initCont1Devices := testManager.podDevices.containerDevices(podUID, initCont1, res1.resourceName)
-	initCont2Devices := testManager.podDevices.containerDevices(podUID, initCont2, res1.resourceName)
-	normalCont1Devices := testManager.podDevices.containerDevices(podUID, normalCont1, res1.resourceName)
-	normalCont2Devices := testManager.podDevices.containerDevices(podUID, normalCont2, res1.resourceName)
+	initCont1Devices := testManager.podDevices.containerDevices(podUID, initCont1, "erc1")
+	initCont2Devices := testManager.podDevices.containerDevices(podUID, initCont2, "erc2")
+	normalCont1Devices := testManager.podDevices.containerDevices(podUID, normalCont1, "erc3")
+	normalCont1Devices = normalCont1Devices.Union(testManager.podDevices.containerDevices(podUID, normalCont1, "erc4"))
+	normalCont2Devices := testManager.podDevices.containerDevices(podUID, normalCont2, "erc5").Union(testManager.podDevices.containerDevices(podUID, normalCont2, "erc6"))
 	as.Equal(1, initCont1Devices.Len())
 	as.Equal(2, initCont2Devices.Len())
-	as.Equal(1, normalCont1Devices.Len())
-	as.Equal(1, normalCont2Devices.Len())
-	as.True(initCont2Devices.IsSuperset(initCont1Devices))
-	as.True(initCont2Devices.IsSuperset(normalCont1Devices))
-	as.True(initCont2Devices.IsSuperset(normalCont2Devices))
+	as.Equal(2, normalCont1Devices.Len())
+	as.Equal(2, normalCont2Devices.Len())
 	as.Equal(0, normalCont1Devices.Intersection(normalCont2Devices).Len())
-}
-
-func TestSanitizeNodeAllocatable(t *testing.T) {
-	resourceName1 := "domain1.com/resource1"
-	devID1 := "dev1"
-
-	resourceName2 := "domain2.com/resource2"
-	devID2 := "dev2"
-
-	as := assert.New(t)
-	monitorCallback := func(resourceName string, added, updated, deleted []pluginapi.Device) {}
-
-	testManager := &ManagerImpl{
-		callback:         monitorCallback,
-		healthyDevices:   make(map[string]sets.String),
-		allocatedDevices: make(map[string]sets.String),
-		podDevices:       make(podDevices),
-	}
-	testManager.store, _ = utilstore.NewFileStore("/tmp/", utilfs.DefaultFs{})
-	// require one of resource1 and one of resource2
-	testManager.allocatedDevices[resourceName1] = sets.NewString()
-	testManager.allocatedDevices[resourceName1].Insert(devID1)
-	testManager.allocatedDevices[resourceName2] = sets.NewString()
-	testManager.allocatedDevices[resourceName2].Insert(devID2)
-
-	cachedNode := &v1.Node{
-		Status: v1.NodeStatus{
-			Allocatable: v1.ResourceList{
-				// has no resource1 and two of resource2
-				v1.ResourceName(resourceName2): *resource.NewQuantity(int64(2), resource.DecimalSI),
-			},
-		},
-	}
-	nodeInfo := &schedulercache.NodeInfo{}
-	nodeInfo.SetNode(cachedNode)
-
-	testManager.sanitizeNodeAllocatable(nodeInfo)
-
-	allocatableScalarResources := nodeInfo.AllocatableResource().ScalarResources
-	// allocatable in nodeInfo is less than needed, should update
-	as.Equal(1, int(allocatableScalarResources[v1.ResourceName(resourceName1)]))
-	// allocatable in nodeInfo is more than needed, should skip updating
-	as.Equal(2, int(allocatableScalarResources[v1.ResourceName(resourceName2)]))
 }
 
 func TestDevicePreStartContainer(t *testing.T) {
@@ -792,7 +807,6 @@ func TestDevicePreStartContainer(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("", "checkpoint")
 	as.Nil(err)
 	defer os.RemoveAll(tmpDir)
-	nodeInfo := getTestNodeInfo(v1.ResourceList{})
 	pluginOpts := make(map[string]*pluginapi.DevicePluginOptions)
 	pluginOpts[res1.resourceName] = &pluginapi.DevicePluginOptions{PreStartRequired: true}
 
@@ -804,12 +818,28 @@ func TestDevicePreStartContainer(t *testing.T) {
 		allocateFunc: allocateStubFunc(),
 	}
 
-	pod := makePod(v1.ResourceList{
-		v1.ResourceName(res1.resourceName): res1.resourceQuantity})
+	fakeCli := fakeclient.NewSimpleClientset()
+	testManager.client = fakeCli
+	// fakeCli.ExtensionsV1alpha1().ExtendedResourceClaims("").Create()
+
+	erc1 := &apiextensions.ExtendedResourceClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "erc1",
+		},
+		Spec: apiextensions.ExtendedResourceClaimSpec{
+			ExtendedResourceNames: []string{"domain1.com/resource1-dev1", "domain1.com/resource1-dev2"},
+			RawResourceName:       res1.resourceName,
+			ExtendedResourceNum:   2,
+		},
+	}
+
+	fakeCli.ExtensionsV1alpha1().ExtendedResourceClaims(erc1.Namespace).Create(erc1)
+
+	pod := makePod([]string{"erc1"})
 	activePods := []*v1.Pod{}
 	activePods = append(activePods, pod)
 	podsStub.updateActivePods(activePods)
-	err = testManager.Allocate(nodeInfo, &lifecycle.PodAdmitAttributes{Pod: pod})
+	err = testManager.Allocate(&lifecycle.PodAdmitAttributes{Pod: pod})
 	as.Nil(err)
 	runContainerOpts, err := testManager.GetDeviceRunContainerOptions(pod, &pod.Spec.Containers[0])
 	as.Nil(err)

@@ -25,7 +25,7 @@ import (
 	"github.com/golang/glog"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
-
+	clientset "k8s.io/client-go/kubernetes"
 	pluginapi "k8s.io/kubernetes/pkg/kubelet/apis/deviceplugin/v1beta1"
 )
 
@@ -44,6 +44,7 @@ type endpoint interface {
 }
 
 type endpointImpl struct {
+	kubeClient clientset.Interface
 	client     pluginapi.DevicePluginClient
 	clientConn *grpc.ClientConn
 
@@ -59,7 +60,7 @@ type endpointImpl struct {
 
 // newEndpoint creates a new endpoint for the given resourceName.
 // This is to be used during normal device plugin registration.
-func newEndpointImpl(socketPath, resourceName string, devices map[string]pluginapi.Device, callback monitorCallback) (*endpointImpl, error) {
+func newEndpointImpl(kubeClient clientset.Interface, socketPath, resourceName string, devices map[string]pluginapi.Device, callback monitorCallback) (*endpointImpl, error) {
 	client, c, err := dial(socketPath)
 	if err != nil {
 		glog.Errorf("Can't create new endpoint with path %s err %v", socketPath, err)
@@ -67,6 +68,7 @@ func newEndpointImpl(socketPath, resourceName string, devices map[string]plugina
 	}
 
 	return &endpointImpl{
+		kubeClient: kubeClient,
 		client:     client,
 		clientConn: c,
 
@@ -152,7 +154,7 @@ func (e *endpointImpl) run() {
 				continue
 			}
 
-			if d.Health == dOld.Health {
+			if deviceNotChanged(*d, dOld) {
 				continue
 			}
 
@@ -161,6 +163,7 @@ func (e *endpointImpl) run() {
 			} else if d.Health == pluginapi.Healthy {
 				glog.V(2).Infof("Device %s is now Healthy", d.ID)
 			}
+			glog.V(2).Infof("Properties of Device(%s) are :%v", d.ID, d.Properties)
 
 			devices[d.ID] = *d
 			updated = append(updated, *d)
@@ -188,6 +191,23 @@ func (e *endpointImpl) run() {
 
 		e.callback(e.resourceName, added, updated, deleted)
 	}
+}
+
+func deviceNotChanged(newD, oldD pluginapi.Device) bool {
+	if newD.Health != oldD.Health {
+		return false
+	}
+
+	if len(newD.Properties) != len(oldD.Properties) {
+		return false
+	}
+	for k, v := range newD.Properties {
+		oldV, ok := oldD.Properties[k]
+		if !ok || oldV != v {
+			return false
+		}
+	}
+	return true
 }
 
 func (e *endpointImpl) isStopped() bool {

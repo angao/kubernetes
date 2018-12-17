@@ -201,7 +201,6 @@ go_test(
         "//pkg/kubelet/util/queue:go_default_library",
         "//pkg/kubelet/util/sliceutils:go_default_library",
         "//pkg/kubelet/volumemanager:go_default_library",
-        "//pkg/scheduler/schedulercache:go_default_library",
         "//pkg/util/mount:go_default_library",
         "//pkg/version:go_default_library",
         "//pkg/volume:go_default_library",

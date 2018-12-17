@@ -91,7 +91,6 @@ go_library(
         "//pkg/kubelet/eviction/api:go_default_library",
         "//pkg/kubelet/lifecycle:go_default_library",
         "//pkg/kubelet/status:go_default_library",
-        "//pkg/scheduler/schedulercache:go_default_library",
         "//vendor/github.com/golang/glog:go_default_library",
         "//vendor/k8s.io/api/core/v1:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/api/resource:go_default_library",
@@ -102,21 +101,25 @@ go_library(
         "@io_bazel_rules_go//go/platform:android": [
             "//pkg/kubelet/cadvisor:go_default_library",
             "//pkg/util/mount:go_default_library",
+            "//vendor/k8s.io/client-go/kubernetes:go_default_library",
             "//vendor/k8s.io/client-go/tools/record:go_default_library",
         ],
         "@io_bazel_rules_go//go/platform:darwin": [
             "//pkg/kubelet/cadvisor:go_default_library",
             "//pkg/util/mount:go_default_library",
+            "//vendor/k8s.io/client-go/kubernetes:go_default_library",
             "//vendor/k8s.io/client-go/tools/record:go_default_library",
         ],
         "@io_bazel_rules_go//go/platform:dragonfly": [
             "//pkg/kubelet/cadvisor:go_default_library",
             "//pkg/util/mount:go_default_library",
+            "//vendor/k8s.io/client-go/kubernetes:go_default_library",
             "//vendor/k8s.io/client-go/tools/record:go_default_library",
         ],
         "@io_bazel_rules_go//go/platform:freebsd": [
             "//pkg/kubelet/cadvisor:go_default_library",
             "//pkg/util/mount:go_default_library",
+            "//vendor/k8s.io/client-go/kubernetes:go_default_library",
             "//vendor/k8s.io/client-go/tools/record:go_default_library",
         ],
         "@io_bazel_rules_go//go/platform:linux": [
@@ -143,31 +146,37 @@ go_library(
             "//vendor/github.com/opencontainers/runc/libcontainer/configs:go_default_library",
             "//vendor/k8s.io/apimachinery/pkg/util/errors:go_default_library",
             "//vendor/k8s.io/apimachinery/pkg/util/wait:go_default_library",
+            "//vendor/k8s.io/client-go/kubernetes:go_default_library",
             "//vendor/k8s.io/client-go/tools/record:go_default_library",
         ],
         "@io_bazel_rules_go//go/platform:nacl": [
             "//pkg/kubelet/cadvisor:go_default_library",
             "//pkg/util/mount:go_default_library",
+            "//vendor/k8s.io/client-go/kubernetes:go_default_library",
             "//vendor/k8s.io/client-go/tools/record:go_default_library",
         ],
         "@io_bazel_rules_go//go/platform:netbsd": [
             "//pkg/kubelet/cadvisor:go_default_library",
             "//pkg/util/mount:go_default_library",
+            "//vendor/k8s.io/client-go/kubernetes:go_default_library",
             "//vendor/k8s.io/client-go/tools/record:go_default_library",
         ],
         "@io_bazel_rules_go//go/platform:openbsd": [
             "//pkg/kubelet/cadvisor:go_default_library",
             "//pkg/util/mount:go_default_library",
+            "//vendor/k8s.io/client-go/kubernetes:go_default_library",
             "//vendor/k8s.io/client-go/tools/record:go_default_library",
         ],
         "@io_bazel_rules_go//go/platform:plan9": [
             "//pkg/kubelet/cadvisor:go_default_library",
             "//pkg/util/mount:go_default_library",
+            "//vendor/k8s.io/client-go/kubernetes:go_default_library",
             "//vendor/k8s.io/client-go/tools/record:go_default_library",
         ],
         "@io_bazel_rules_go//go/platform:solaris": [
             "//pkg/kubelet/cadvisor:go_default_library",
             "//pkg/util/mount:go_default_library",
+            "//vendor/k8s.io/client-go/kubernetes:go_default_library",
             "//vendor/k8s.io/client-go/tools/record:go_default_library",
         ],
         "@io_bazel_rules_go//go/platform:windows": [
