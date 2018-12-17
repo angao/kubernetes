@@ -77437,6 +77437,13 @@
        "$ref": "#/definitions/io.k8s.api.core.v1.EnvFromSource"
       }
      },
+     "extendedResourceClaims": {
+      "description": "ExtendedResourceClaims is the claim names array users asked for this container",
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
      "image": {
       "description": "Docker image name. More info: https://kubernetes.io/docs/concepts/containers/images This field is optional to allow higher level config management to default or override container images in workload controllers like Deployments and StatefulSets.",
       "type": "string"
@@ -79114,6 +79121,27 @@
      "daemonEndpoints": {
       "description": "Endpoints of daemons running on the Node.",
       "$ref": "#/definitions/io.k8s.api.core.v1.NodeDaemonEndpoints"
+     },
+     "extendedResourceAllocatable": {
+      "description": "List of ExtendedResources that are allocatable on this node values are names of ExtendedResources",
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "extendedResourceCapacity": {
+      "description": "List of all ExtendedResources on this node values are names of ExtendedResources",
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "extendedResourceRemoved": {
+      "description": "List of ExtendedResources that were on this node, but removed now values are names of ExtendedResources",
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
      },
      "images": {
       "description": "List of container images on this node",

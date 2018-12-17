@@ -1037,6 +1037,7 @@ func autoConvert_v1_Container_To_core_Container(in *v1.Container, out *core.Cont
 	out.Stdin = in.Stdin
 	out.StdinOnce = in.StdinOnce
 	out.TTY = in.TTY
+	out.ExtendedResourceClaims = *(*[]string)(unsafe.Pointer(&in.ExtendedResourceClaims))
 	return nil
 }
 
@@ -1077,6 +1078,7 @@ func autoConvert_core_Container_To_v1_Container(in *core.Container, out *v1.Cont
 	out.Stdin = in.Stdin
 	out.StdinOnce = in.StdinOnce
 	out.TTY = in.TTY
+	out.ExtendedResourceClaims = *(*[]string)(unsafe.Pointer(&in.ExtendedResourceClaims))
 	return nil
 }
 
@@ -2870,6 +2872,9 @@ func autoConvert_v1_NodeStatus_To_core_NodeStatus(in *v1.NodeStatus, out *core.N
 	out.Images = *(*[]core.ContainerImage)(unsafe.Pointer(&in.Images))
 	out.VolumesInUse = *(*[]core.UniqueVolumeName)(unsafe.Pointer(&in.VolumesInUse))
 	out.VolumesAttached = *(*[]core.AttachedVolume)(unsafe.Pointer(&in.VolumesAttached))
+	out.ExtendedResourceAllocatable = *(*[]string)(unsafe.Pointer(&in.ExtendedResourceAllocatable))
+	out.ExtendedResourceCapacity = *(*[]string)(unsafe.Pointer(&in.ExtendedResourceCapacity))
+	out.ExtendedResourceRemoved = *(*[]string)(unsafe.Pointer(&in.ExtendedResourceRemoved))
 	return nil
 }
 
@@ -2893,6 +2898,9 @@ func autoConvert_core_NodeStatus_To_v1_NodeStatus(in *core.NodeStatus, out *v1.N
 	out.Images = *(*[]v1.ContainerImage)(unsafe.Pointer(&in.Images))
 	out.VolumesInUse = *(*[]v1.UniqueVolumeName)(unsafe.Pointer(&in.VolumesInUse))
 	out.VolumesAttached = *(*[]v1.AttachedVolume)(unsafe.Pointer(&in.VolumesAttached))
+	out.ExtendedResourceAllocatable = *(*[]string)(unsafe.Pointer(&in.ExtendedResourceAllocatable))
+	out.ExtendedResourceCapacity = *(*[]string)(unsafe.Pointer(&in.ExtendedResourceCapacity))
+	out.ExtendedResourceRemoved = *(*[]string)(unsafe.Pointer(&in.ExtendedResourceRemoved))
 	return nil
 }
 
