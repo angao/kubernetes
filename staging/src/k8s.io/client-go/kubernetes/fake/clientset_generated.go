@@ -58,6 +58,8 @@ import (
 	fakecorev1 "k8s.io/client-go/kubernetes/typed/core/v1/fake"
 	eventsv1beta1 "k8s.io/client-go/kubernetes/typed/events/v1beta1"
 	fakeeventsv1beta1 "k8s.io/client-go/kubernetes/typed/events/v1beta1/fake"
+	extensionsv1alpha1 "k8s.io/client-go/kubernetes/typed/extensions/v1alpha1"
+	fakeextensionsv1alpha1 "k8s.io/client-go/kubernetes/typed/extensions/v1alpha1/fake"
 	extensionsv1beta1 "k8s.io/client-go/kubernetes/typed/extensions/v1beta1"
 	fakeextensionsv1beta1 "k8s.io/client-go/kubernetes/typed/extensions/v1beta1/fake"
 	networkingv1 "k8s.io/client-go/kubernetes/typed/networking/v1"
@@ -252,6 +254,11 @@ func (c *Clientset) EventsV1beta1() eventsv1beta1.EventsV1beta1Interface {
 // Events retrieves the EventsV1beta1Client
 func (c *Clientset) Events() eventsv1beta1.EventsV1beta1Interface {
 	return &fakeeventsv1beta1.FakeEventsV1beta1{Fake: &c.Fake}
+}
+
+// ExtensionsV1alpha1 retrieves the ExtensionsV1alpha1Client
+func (c *Clientset) ExtensionsV1alpha1() extensionsv1alpha1.ExtensionsV1alpha1Interface {
+	return &fakeextensionsv1alpha1.FakeExtensionsV1alpha1{Fake: &c.Fake}
 }
 
 // ExtensionsV1beta1 retrieves the ExtensionsV1beta1Client

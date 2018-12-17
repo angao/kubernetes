@@ -131,6 +131,10 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Extensions().InternalVersion().DaemonSets().Informer()}, nil
 	case extensions.SchemeGroupVersion.WithResource("deployments"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Extensions().InternalVersion().Deployments().Informer()}, nil
+	case extensions.SchemeGroupVersion.WithResource("extendedresources"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Extensions().InternalVersion().ExtendedResources().Informer()}, nil
+	case extensions.SchemeGroupVersion.WithResource("extendedresourceclaims"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Extensions().InternalVersion().ExtendedResourceClaims().Informer()}, nil
 	case extensions.SchemeGroupVersion.WithResource("ingresses"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Extensions().InternalVersion().Ingresses().Informer()}, nil
 	case extensions.SchemeGroupVersion.WithResource("podsecuritypolicies"):
