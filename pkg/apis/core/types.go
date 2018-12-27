@@ -4272,6 +4272,8 @@ const (
 	ResourceLimitsMemory ResourceName = "limits.memory"
 	// Local ephemeral storage limit, in bytes. (500Gi = 500GiB = 500 * 1024 * 1024 * 1024)
 	ResourceLimitsEphemeralStorage ResourceName = "limits.ephemeral-storage"
+	// GPU, number
+	ResourceExtendedResourceGPU ResourceName = "extended.resource.gpu"
 )
 
 // The following identify resource prefix for Kubernetes object types
@@ -4281,6 +4283,8 @@ const (
 	ResourceRequestsHugePagesPrefix = "requests.hugepages-"
 	// Default resource requests prefix
 	DefaultResourceRequestsPrefix = "requests."
+	// ResourceExtendedResourceGPUPrefix extended resource prefix
+	ResourceExtendedResourceGPUPrefix = "extended.resource.gpu."
 )
 
 // A ResourceQuotaScope defines a filter that must match each object tracked by a quota

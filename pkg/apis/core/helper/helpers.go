@@ -44,6 +44,10 @@ func IsQuotaHugePageResourceName(name core.ResourceName) bool {
 	return strings.HasPrefix(string(name), core.ResourceHugePagesPrefix) || strings.HasPrefix(string(name), core.ResourceRequestsHugePagesPrefix)
 }
 
+func IsGPUExtendedResourceName(name core.ResourceName) bool {
+	return strings.HasPrefix(string(name), core.ResourceExtendedResourceGPUPrefix)
+}
+
 // HugePageResourceName returns a ResourceName with the canonical hugepage
 // prefix prepended for the specified page size.  The page size is converted
 // to its canonical representation.
@@ -213,12 +217,13 @@ var standardQuotaResources = sets.NewString(
 	string(core.ResourceConfigMaps),
 	string(core.ResourceServicesNodePorts),
 	string(core.ResourceServicesLoadBalancers),
+	string(core.ResourceExtendedResourceGPU),
 )
 
 // IsStandardQuotaResourceName returns true if the resource is known to
 // the quota tracking system
 func IsStandardQuotaResourceName(str string) bool {
-	return standardQuotaResources.Has(str) || IsQuotaHugePageResourceName(core.ResourceName(str))
+	return standardQuotaResources.Has(str) || IsQuotaHugePageResourceName(core.ResourceName(str)) || IsGPUExtendedResourceName(core.ResourceName(str))
 }
 
 var standardResources = sets.NewString(
@@ -242,11 +247,12 @@ var standardResources = sets.NewString(
 	string(core.ResourceRequestsStorage),
 	string(core.ResourceServicesNodePorts),
 	string(core.ResourceServicesLoadBalancers),
+	string(core.ResourceExtendedResourceGPU),
 )
 
 // IsStandardResourceName returns true if the resource is known to the system
 func IsStandardResourceName(str string) bool {
-	return standardResources.Has(str) || IsQuotaHugePageResourceName(core.ResourceName(str))
+	return standardResources.Has(str) || IsQuotaHugePageResourceName(core.ResourceName(str)) || IsGPUExtendedResourceName(core.ResourceName(str))
 }
 
 var integerResources = sets.NewString(
