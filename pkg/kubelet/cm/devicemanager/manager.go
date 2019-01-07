@@ -150,7 +150,7 @@ func (m *ManagerImpl) createER(resourceName string, d pluginapi.Device) error {
 
 	er := &apiextensions.ExtendedResource{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: resourceName + "-" + d.ID,
+			Name: resourceName + "-" + formatDeviceID(d.ID),
 		},
 		Spec: apiextensions.ExtendedResourceSpec{
 			RawResourceName: resourceName,
@@ -188,15 +188,17 @@ func labelsAsNodeSelectorRequirement(labels map[string]string) []v1.NodeSelector
 
 func (m *ManagerImpl) updateER(erName, healthCondition string) {
 	er, err := m.client.ExtensionsV1alpha1().ExtendedResources().Get(erName, metav1.GetOptions{})
-	if err != nil {
-		glog.Errorf("get ExtendedResource error: %v", err)
-		return
-	}
-	if er == nil {
+	if errors.IsNotFound(err) || er == nil {
 		// No ER for this device
 		glog.Errorf("no ExtendedResource found")
 		return
 	}
+
+	if err != nil {
+		glog.Errorf("get ExtendedResource error: %v", err)
+		return
+	}
+
 	var phase apiextensions.ExtendedResourcePhase
 	if healthCondition != pluginapi.Healthy {
 		phase = apiextensions.ExtendedResourcePending
@@ -213,14 +215,16 @@ func (m *ManagerImpl) updateER(erName, healthCondition string) {
 
 func (m *ManagerImpl) deleteER(erName string) {
 	er, err := m.client.ExtensionsV1alpha1().ExtendedResources().Get(erName, metav1.GetOptions{})
+	if errors.IsNotFound(err) || er == nil {
+		// The ER was deleted, skip this
+		return
+	}
+
 	if err != nil {
 		glog.Errorf("get ExtendedResource error: %v", err)
 		return
 	}
-	if er == nil {
-		// The ER was deleted, skip this
-		return
-	}
+
 	err = m.client.ExtensionsV1alpha1().ExtendedResources().Delete(erName, &metav1.DeleteOptions{})
 	if err != nil {
 		glog.Errorf("delete ExtendedResource error: %v", err)
@@ -230,10 +234,13 @@ func (m *ManagerImpl) deleteER(erName string) {
 
 func (m *ManagerImpl) updateERs(resourceName string, updated, deleted []pluginapi.Device) {
 	for _, d := range updated {
-		er, err := m.client.ExtensionsV1alpha1().ExtendedResources().Get(resourceName+"-"+d.ID, metav1.GetOptions{})
+		er, err := m.client.ExtensionsV1alpha1().ExtendedResources().Get(resourceName+"-"+formatDeviceID(d.ID), metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			// No ER for this device, create one
-			m.createER(resourceName, d)
+			err := m.createER(resourceName, d)
+			if err != nil {
+				glog.Errorf("create ExtendedResource: %+v", err)
+			}
 			continue
 		}
 		if err != nil && !errors.IsNotFound(err) {
@@ -257,13 +264,17 @@ func (m *ManagerImpl) updateERs(resourceName string, updated, deleted []pluginap
 	}
 
 	for _, d := range deleted {
-		m.deleteER(resourceName + "-" + d.ID)
+		m.deleteER(resourceName + "-" + formatDeviceID(d.ID))
 	}
 }
 
 func formatResourceName(resourceName string) string {
 	rn := strings.ToLower(resourceName)
 	return strings.Replace(rn, "/", "-", -1)
+}
+
+func formatDeviceID(deviceID string) string {
+	return strings.ToLower(deviceID)
 }
 
 func (m *ManagerImpl) genericDeviceUpdateCallback(resourceName string, added, updated, deleted []pluginapi.Device) {
@@ -276,21 +287,21 @@ func (m *ManagerImpl) genericDeviceUpdateCallback(resourceName string, added, up
 	if _, ok := m.unhealthyDevices[resourceName]; !ok {
 		m.unhealthyDevices[resourceName] = sets.NewString()
 	}
-	for _, dev := range kept {
-		if dev.Health == pluginapi.Healthy {
-			m.healthyDevices[resourceName].Insert(dev.ID)
-			m.unhealthyDevices[resourceName].Delete(dev.ID)
+	for _, device := range kept {
+		if device.Health == pluginapi.Healthy {
+			m.healthyDevices[resourceName].Insert(formatDeviceID(device.ID))
+			m.unhealthyDevices[resourceName].Delete(formatDeviceID(device.ID))
 		} else {
-			m.unhealthyDevices[resourceName].Insert(dev.ID)
-			m.healthyDevices[resourceName].Delete(dev.ID)
+			m.unhealthyDevices[resourceName].Insert(formatDeviceID(device.ID))
+			m.healthyDevices[resourceName].Delete(formatDeviceID(device.ID))
 		}
 	}
-	for _, dev := range deleted {
-		m.healthyDevices[resourceName].Delete(dev.ID)
-		m.unhealthyDevices[resourceName].Delete(dev.ID)
+	for _, device := range deleted {
+		m.healthyDevices[resourceName].Delete(formatDeviceID(device.ID))
+		m.unhealthyDevices[resourceName].Delete(formatDeviceID(device.ID))
 	}
 	m.mutex.Unlock()
-	m.writeCheckpoint()
+	_ = m.writeCheckpoint()
 }
 
 func (m *ManagerImpl) removeContents(dir string) error {
@@ -532,8 +543,8 @@ func (m *ManagerImpl) markResourceUnhealthy(resourceName string) {
 	if _, ok := m.unhealthyDevices[resourceName]; !ok {
 		m.unhealthyDevices[resourceName] = sets.NewString()
 	}
-	for _, did := range healthyDevices.UnsortedList() {
-		m.updateER(formatResourceName(resourceName)+"-"+did, pluginapi.Unhealthy)
+	for _, deviceID := range healthyDevices.UnsortedList() {
+		m.updateER(formatResourceName(resourceName)+"-"+formatDeviceID(deviceID), pluginapi.Unhealthy)
 	}
 
 	m.unhealthyDevices[resourceName] = m.unhealthyDevices[resourceName].Union(healthyDevices)
@@ -564,13 +575,13 @@ func (m *ManagerImpl) GetCapacity() ([]string, []string, []string) {
 			delete(m.endpoints, resourceName)
 			delete(m.healthyDevices, resourceName)
 			for _, deviceID := range devices.UnsortedList() {
-				deletedResources.Insert(formatResourceName(resourceName) + "-" + deviceID)
+				deletedResources.Insert(formatResourceName(resourceName) + "-" + formatDeviceID(deviceID))
 			}
 			needsUpdateCheckpoint = true
 		} else {
 			for _, deviceID := range devices.UnsortedList() {
-				capacity.Insert(formatResourceName(resourceName) + "-" + deviceID)
-				allocatable.Insert(formatResourceName(resourceName) + "-" + deviceID)
+				capacity.Insert(formatResourceName(resourceName) + "-" + formatDeviceID(deviceID))
+				allocatable.Insert(formatResourceName(resourceName) + "-" + formatDeviceID(deviceID))
 			}
 		}
 	}
@@ -583,12 +594,12 @@ func (m *ManagerImpl) GetCapacity() ([]string, []string, []string) {
 			delete(m.endpoints, resourceName)
 			delete(m.unhealthyDevices, resourceName)
 			for _, deviceID := range devices.UnsortedList() {
-				deletedResources.Insert(formatResourceName(resourceName) + "-" + deviceID)
+				deletedResources.Insert(formatResourceName(resourceName) + "-" + formatDeviceID(deviceID))
 			}
 			needsUpdateCheckpoint = true
 		} else {
 			for _, deviceID := range devices.UnsortedList() {
-				capacity.Insert(formatResourceName(resourceName) + "-" + deviceID)
+				capacity.Insert(formatResourceName(resourceName) + "-" + formatDeviceID(deviceID))
 			}
 		}
 	}
