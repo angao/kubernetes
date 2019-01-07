@@ -265,11 +265,12 @@ var integerResources = sets.NewString(
 	string(core.ResourcePersistentVolumeClaims),
 	string(core.ResourceServicesNodePorts),
 	string(core.ResourceServicesLoadBalancers),
+	string(core.ResourceExtendedResourceGPU),
 )
 
 // IsIntegerResourceName returns true if the resource is measured in integer values
 func IsIntegerResourceName(str string) bool {
-	return integerResources.Has(str) || IsExtendedResourceName(core.ResourceName(str))
+	return integerResources.Has(str) || IsExtendedResourceName(core.ResourceName(str)) || IsGPUExtendedResourceName(core.ResourceName(str))
 }
 
 // this function aims to check if the service's ClusterIP is set or not

@@ -40,6 +40,7 @@ func NewEvaluators(f quota.ListerForResourceFunc) []quota.Evaluator {
 		NewPodEvaluator(f, clock.RealClock{}),
 		NewServiceEvaluator(f),
 		NewPersistentVolumeClaimEvaluator(f),
+		NewExtendedResourceClaimEvaluator(f),
 	}
 	// these evaluators require an alias for backwards compatibility
 	for gvr, alias := range legacyObjectCountAliases {
