@@ -12,6 +12,8 @@ go_library(
         "fake_daemonset.go",
         "fake_deployment.go",
         "fake_deployment_expansion.go",
+        "fake_extendedresource.go",
+        "fake_extendedresourceclaim.go",
         "fake_extensions_client.go",
         "fake_ingress.go",
         "fake_podsecuritypolicy.go",

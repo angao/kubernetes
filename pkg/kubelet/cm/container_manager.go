@@ -17,22 +17,19 @@ limitations under the License.
 package cm
 
 import (
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/sets"
-	// TODO: Migrate kubelet to either use its own internal objects or client library.
 	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/sets" // TODO: Migrate kubelet to either use its own internal objects or client library.
 	internalapi "k8s.io/kubernetes/pkg/kubelet/apis/cri"
 	"k8s.io/kubernetes/pkg/kubelet/config"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	evictionapi "k8s.io/kubernetes/pkg/kubelet/eviction/api"
 	"k8s.io/kubernetes/pkg/kubelet/lifecycle"
 	"k8s.io/kubernetes/pkg/kubelet/status"
-	"k8s.io/kubernetes/pkg/scheduler/schedulercache"
-
-	"fmt"
-	"strconv"
-	"strings"
 )
 
 type ActivePodsFunc func() []*v1.Pod
@@ -73,7 +70,7 @@ type ContainerManager interface {
 	// GetDevicePluginResourceCapacity returns the node capacity (amount of total device plugin resources),
 	// node allocatable (amount of total healthy resources reported by device plugin),
 	// and inactive device plugin resources previously registered on the node.
-	GetDevicePluginResourceCapacity() (v1.ResourceList, v1.ResourceList, []string)
+	GetDevicePluginResourceCapacity() ([]string, []string, []string)
 
 	// UpdateQOSCgroups performs housekeeping updates to ensure that the top
 	// level QoS containers have their desired state in a thread-safe way
@@ -85,10 +82,7 @@ type ContainerManager interface {
 
 	// UpdatePluginResources calls Allocate of device plugin handler for potential
 	// requests for device plugin resources, and returns an error if fails.
-	// Otherwise, it updates allocatableResource in nodeInfo if necessary,
-	// to make sure it is at least equal to the pod's requested capacity for
-	// any registered device plugin resource
-	UpdatePluginResources(*schedulercache.NodeInfo, *lifecycle.PodAdmitAttributes) error
+	UpdatePluginResources(*lifecycle.PodAdmitAttributes) error
 
 	InternalContainerLifecycle() InternalContainerLifecycle
 

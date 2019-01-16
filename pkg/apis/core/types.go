@@ -2063,6 +2063,10 @@ type Container struct {
 	StdinOnce bool
 	// +optional
 	TTY bool
+
+	// ExtendedResourceClaims is the claim names array users asked for this container
+	// +optional
+	ExtendedResourceClaims []string
 }
 
 // Handler defines a specific action that should be taken
@@ -3509,6 +3513,19 @@ type NodeStatus struct {
 	// List of volumes that are attached to the node.
 	// +optional
 	VolumesAttached []AttachedVolume
+
+	// List of ExtendedResources that are allocatable on this node
+	// values are names of ExtendedResources
+	// +optional
+	ExtendedResourceAllocatable []string
+	// List of all ExtendedResources on this node
+	// values are names of ExtendedResources
+	// +optional
+	ExtendedResourceCapacity []string
+	// List of ExtendedResources that were on this node, but removed now
+	// values are names of ExtendedResources
+	// +optional
+	ExtendedResourceRemoved []string
 }
 
 type UniqueVolumeName string
@@ -4255,6 +4272,8 @@ const (
 	ResourceLimitsMemory ResourceName = "limits.memory"
 	// Local ephemeral storage limit, in bytes. (500Gi = 500GiB = 500 * 1024 * 1024 * 1024)
 	ResourceLimitsEphemeralStorage ResourceName = "limits.ephemeral-storage"
+	// GPU, number
+	ResourceExtendedResourceGPU ResourceName = "extended.resource.gpu"
 )
 
 // The following identify resource prefix for Kubernetes object types
@@ -4264,6 +4283,8 @@ const (
 	ResourceRequestsHugePagesPrefix = "requests.hugepages-"
 	// Default resource requests prefix
 	DefaultResourceRequestsPrefix = "requests."
+	// ResourceExtendedResourceGPUPrefix extended resource prefix
+	ResourceExtendedResourceGPUPrefix = "extended.resource.gpu."
 )
 
 // A ResourceQuotaScope defines a filter that must match each object tracked by a quota

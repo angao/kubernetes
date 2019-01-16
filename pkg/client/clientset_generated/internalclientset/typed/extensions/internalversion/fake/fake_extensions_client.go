@@ -36,6 +36,14 @@ func (c *FakeExtensions) Deployments(namespace string) internalversion.Deploymen
 	return &FakeDeployments{c, namespace}
 }
 
+func (c *FakeExtensions) ExtendedResources() internalversion.ExtendedResourceInterface {
+	return &FakeExtendedResources{c}
+}
+
+func (c *FakeExtensions) ExtendedResourceClaims(namespace string) internalversion.ExtendedResourceClaimInterface {
+	return &FakeExtendedResourceClaims{c, namespace}
+}
+
 func (c *FakeExtensions) Ingresses(namespace string) internalversion.IngressInterface {
 	return &FakeIngresses{c, namespace}
 }

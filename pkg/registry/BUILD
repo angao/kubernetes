@@ -69,6 +69,8 @@ filegroup(
         "//pkg/registry/events/event:all-srcs",
         "//pkg/registry/events/rest:all-srcs",
         "//pkg/registry/extensions/controller/storage:all-srcs",
+        "//pkg/registry/extensions/extendedresource:all-srcs",
+        "//pkg/registry/extensions/extendedresourceclaim:all-srcs",
         "//pkg/registry/extensions/ingress:all-srcs",
         "//pkg/registry/extensions/podsecuritypolicy:all-srcs",
         "//pkg/registry/extensions/rest:all-srcs",

@@ -27,6 +27,8 @@ type ExtensionsInterface interface {
 	RESTClient() rest.Interface
 	DaemonSetsGetter
 	DeploymentsGetter
+	ExtendedResourcesGetter
+	ExtendedResourceClaimsGetter
 	IngressesGetter
 	PodSecurityPoliciesGetter
 	ReplicaSetsGetter
@@ -43,6 +45,14 @@ func (c *ExtensionsClient) DaemonSets(namespace string) DaemonSetInterface {
 
 func (c *ExtensionsClient) Deployments(namespace string) DeploymentInterface {
 	return newDeployments(c, namespace)
+}
+
+func (c *ExtensionsClient) ExtendedResources() ExtendedResourceInterface {
+	return newExtendedResources(c)
+}
+
+func (c *ExtensionsClient) ExtendedResourceClaims(namespace string) ExtendedResourceClaimInterface {
+	return newExtendedResourceClaims(c, namespace)
 }
 
 func (c *ExtensionsClient) Ingresses(namespace string) IngressInterface {

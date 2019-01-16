@@ -18789,6 +18789,27 @@
        "$ref": "v1.AttachedVolume"
       },
       "description": "List of volumes that are attached to the node."
+     },
+     "extendedResourceAllocatable": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "List of ExtendedResources that are allocatable on this node values are names of ExtendedResources"
+     },
+     "extendedResourceCapacity": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "List of all ExtendedResources on this node values are names of ExtendedResources"
+     },
+     "extendedResourceRemoved": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "List of ExtendedResources that were on this node, but removed now values are names of ExtendedResources"
      }
     }
    },
@@ -21118,6 +21139,13 @@
      "tty": {
       "type": "boolean",
       "description": "Whether this container should allocate a TTY for itself, also requires 'stdin' to be true. Default is false."
+     },
+     "extendedResourceClaims": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "ExtendedResourceClaims is the claim names array users asked for this container"
      }
     }
    },

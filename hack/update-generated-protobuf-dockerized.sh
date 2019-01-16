@@ -48,6 +48,7 @@ PACKAGES=(
   k8s.io/kube-aggregator/pkg/apis/apiregistration/v1
   k8s.io/api/core/v1
   k8s.io/api/policy/v1beta1
+  k8s.io/api/extensions/v1alpha1
   k8s.io/api/extensions/v1beta1
   k8s.io/api/autoscaling/v1
   k8s.io/api/authorization/v1

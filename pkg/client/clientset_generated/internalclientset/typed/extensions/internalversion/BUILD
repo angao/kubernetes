@@ -12,6 +12,8 @@ go_library(
         "deployment.go",
         "deployment_expansion.go",
         "doc.go",
+        "extendedresource.go",
+        "extendedresourceclaim.go",
         "extensions_client.go",
         "generated_expansion.go",
         "ingress.go",

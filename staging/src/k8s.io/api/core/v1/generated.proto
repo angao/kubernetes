@@ -660,6 +660,10 @@ message Container {
   // Default is false.
   // +optional
   optional bool tty = 18;
+
+  // ExtendedResourceClaims is the claim names array users asked for this container
+  // +optional
+  repeated string extendedResourceClaims = 22;
 }
 
 // Describe a container image
@@ -2036,6 +2040,21 @@ message NodeStatus {
   // List of volumes that are attached to the node.
   // +optional
   repeated AttachedVolume volumesAttached = 10;
+
+  // List of ExtendedResources that are allocatable on this node
+  // values are names of ExtendedResources
+  // +optional
+  repeated string extendedResourceAllocatable = 11;
+
+  // List of all ExtendedResources on this node
+  // values are names of ExtendedResources
+  // +optional
+  repeated string extendedResourceCapacity = 12;
+
+  // List of ExtendedResources that were on this node, but removed now
+  // values are names of ExtendedResources
+  // +optional
+  repeated string extendedResourceRemoved = 13;
 }
 
 // NodeSystemInfo is a set of ids/uuids to uniquely identify the node.

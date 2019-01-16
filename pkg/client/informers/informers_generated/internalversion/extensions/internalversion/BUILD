@@ -10,6 +10,8 @@ go_library(
     srcs = [
         "daemonset.go",
         "deployment.go",
+        "extendedresource.go",
+        "extendedresourceclaim.go",
         "ingress.go",
         "interface.go",
         "podsecuritypolicy.go",

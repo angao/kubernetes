@@ -17,6 +17,7 @@ limitations under the License.
 package rest
 
 import (
+	extensionsapiv1alpha1 "k8s.io/api/extensions/v1alpha1"
 	extensionsapiv1beta1 "k8s.io/api/extensions/v1beta1"
 	"k8s.io/apiserver/pkg/registry/generic"
 	"k8s.io/apiserver/pkg/registry/rest"
@@ -28,6 +29,8 @@ import (
 	deploymentstore "k8s.io/kubernetes/pkg/registry/apps/deployment/storage"
 	replicasetstore "k8s.io/kubernetes/pkg/registry/apps/replicaset/storage"
 	expcontrollerstore "k8s.io/kubernetes/pkg/registry/extensions/controller/storage"
+	erstore "k8s.io/kubernetes/pkg/registry/extensions/extendedresource/storage"
+	ercstore "k8s.io/kubernetes/pkg/registry/extensions/extendedresourceclaim/storage"
 	ingressstore "k8s.io/kubernetes/pkg/registry/extensions/ingress/storage"
 	pspstore "k8s.io/kubernetes/pkg/registry/extensions/podsecuritypolicy/storage"
 	networkpolicystore "k8s.io/kubernetes/pkg/registry/networking/networkpolicy/storage"
@@ -45,7 +48,24 @@ func (p RESTStorageProvider) NewRESTStorage(apiResourceConfigSource serverstorag
 		apiGroupInfo.GroupMeta.GroupVersion = extensionsapiv1beta1.SchemeGroupVersion
 	}
 
+	if apiResourceConfigSource.VersionEnabled(extensionsapiv1alpha1.SchemeGroupVersion) {
+		apiGroupInfo.VersionedResourcesStorageMap[extensionsapiv1alpha1.SchemeGroupVersion.Version] = p.v1alpha1Storage(apiResourceConfigSource, restOptionsGetter)
+		apiGroupInfo.GroupMeta.GroupVersion = extensionsapiv1alpha1.SchemeGroupVersion
+	}
+
 	return apiGroupInfo, true
+}
+func (p RESTStorageProvider) v1alpha1Storage(apiResourceConfigSource serverstorage.APIResourceConfigSource, restOptionsGetter generic.RESTOptionsGetter) map[string]rest.Storage {
+	storage := map[string]rest.Storage{}
+	// extendedresources
+	erStorage := erstore.NewREST(restOptionsGetter)
+	storage["extendedresources"] = erStorage
+
+	// extendedresourceclaims
+	ercStorage := ercstore.NewREST(restOptionsGetter)
+	storage["extendedresourceclaims"] = ercStorage
+
+	return storage
 }
 
 func (p RESTStorageProvider) v1beta1Storage(apiResourceConfigSource serverstorage.APIResourceConfigSource, restOptionsGetter generic.RESTOptionsGetter) map[string]rest.Storage {

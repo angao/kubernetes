@@ -909,3 +909,47 @@ func ValidatePodSecurityPolicyUpdate(old *extensions.PodSecurityPolicy, new *ext
 	allErrs = append(allErrs, ValidatePodSecurityPolicySpec(&new.Spec, field.NewPath("spec"))...)
 	return allErrs
 }
+
+func ValidateExtendedResourceClaim(erc *extensions.ExtendedResourceClaim) field.ErrorList {
+	allErrs := apivalidation.ValidateObjectMeta(&erc.ObjectMeta, true, apivalidation.NameIsDNSSubdomain, field.NewPath("metadata"))
+	allErrs = append(allErrs, ValidateExtendedResourceClaimSpec(&erc.Spec, field.NewPath("spec"))...)
+	allErrs = append(allErrs, ValidateExtendedResourceClaimStatus(&erc.Status, field.NewPath("status"))...)
+	return allErrs
+}
+
+func ValidateExtendedResourceClaimSpec(spec *extensions.ExtendedResourceClaimSpec, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	return allErrs
+}
+
+func ValidateExtendedResourceClaimStatus(status *extensions.ExtendedResourceClaimStatus, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	return allErrs
+}
+
+func ValidateExtendedResourceClaimUpdate(old *extensions.ExtendedResourceClaim, new *extensions.ExtendedResourceClaim) field.ErrorList {
+	allErrs := field.ErrorList{}
+	return allErrs
+}
+
+func ValidateExtendedResource(er *extensions.ExtendedResource) field.ErrorList {
+	allErrs := apivalidation.ValidateObjectMeta(&er.ObjectMeta, false, apivalidation.NameIsDNSSubdomain, field.NewPath("metadata"))
+	allErrs = append(allErrs, ValidateExtendedResourceSpec(&er.Spec, field.NewPath("spec"))...)
+	allErrs = append(allErrs, ValidateExtendedResourceStatus(&er.Status, field.NewPath("status"))...)
+	return allErrs
+}
+
+func ValidateExtendedResourceSpec(spec *extensions.ExtendedResourceSpec, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	return allErrs
+}
+
+func ValidateExtendedResourceStatus(status *extensions.ExtendedResourceStatus, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	return allErrs
+}
+
+func ValidateExtendedResourceUpdate(old *extensions.ExtendedResource, new *extensions.ExtendedResource) field.ErrorList {
+	allErrs := field.ErrorList{}
+	return allErrs
+}

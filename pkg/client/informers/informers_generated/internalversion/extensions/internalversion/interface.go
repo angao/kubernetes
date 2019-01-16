@@ -28,6 +28,10 @@ type Interface interface {
 	DaemonSets() DaemonSetInformer
 	// Deployments returns a DeploymentInformer.
 	Deployments() DeploymentInformer
+	// ExtendedResources returns a ExtendedResourceInformer.
+	ExtendedResources() ExtendedResourceInformer
+	// ExtendedResourceClaims returns a ExtendedResourceClaimInformer.
+	ExtendedResourceClaims() ExtendedResourceClaimInformer
 	// Ingresses returns a IngressInformer.
 	Ingresses() IngressInformer
 	// PodSecurityPolicies returns a PodSecurityPolicyInformer.
@@ -55,6 +59,16 @@ func (v *version) DaemonSets() DaemonSetInformer {
 // Deployments returns a DeploymentInformer.
 func (v *version) Deployments() DeploymentInformer {
 	return &deploymentInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// ExtendedResources returns a ExtendedResourceInformer.
+func (v *version) ExtendedResources() ExtendedResourceInformer {
+	return &extendedResourceInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// ExtendedResourceClaims returns a ExtendedResourceClaimInformer.
+func (v *version) ExtendedResourceClaims() ExtendedResourceClaimInformer {
+	return &extendedResourceClaimInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // Ingresses returns a IngressInformer.

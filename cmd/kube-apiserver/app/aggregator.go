@@ -231,7 +231,8 @@ var apiVersionPriorities = map[schema.GroupVersion]priority{
 	{Group: "", Version: "v1"}: {group: 18000, version: 1},
 	// extensions is above the rest for CLI compatibility, though the level of unqalified resource compatibility we
 	// can reasonably expect seems questionable.
-	{Group: "extensions", Version: "v1beta1"}: {group: 17900, version: 1},
+	{Group: "extensions", Version: "v1beta1"}:  {group: 17900, version: 1},
+	{Group: "extensions", Version: "v1alpha1"}: {group: 17900, version: 9},
 	// to my knowledge, nothing below here collides
 	{Group: "apps", Version: "v1beta1"}:                          {group: 17800, version: 1},
 	{Group: "apps", Version: "v1beta2"}:                          {group: 17800, version: 9},

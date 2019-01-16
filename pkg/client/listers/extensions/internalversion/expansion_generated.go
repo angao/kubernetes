@@ -18,6 +18,18 @@ limitations under the License.
 
 package internalversion
 
+// ExtendedResourceListerExpansion allows custom methods to be added to
+// ExtendedResourceLister.
+type ExtendedResourceListerExpansion interface{}
+
+// ExtendedResourceClaimListerExpansion allows custom methods to be added to
+// ExtendedResourceClaimLister.
+type ExtendedResourceClaimListerExpansion interface{}
+
+// ExtendedResourceClaimNamespaceListerExpansion allows custom methods to be added to
+// ExtendedResourceClaimNamespaceLister.
+type ExtendedResourceClaimNamespaceListerExpansion interface{}
+
 // IngressListerExpansion allows custom methods to be added to
 // IngressLister.
 type IngressListerExpansion interface{}

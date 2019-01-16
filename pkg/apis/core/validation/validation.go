@@ -28,7 +28,6 @@ import (
 	"strings"
 
 	"github.com/golang/glog"
-
 	"k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -4610,13 +4609,15 @@ func ValidateResourceQuotaStatus(status *core.ResourceQuotaStatus, fld *field.Pa
 		allErrs = append(allErrs, ValidateResourceQuotaResourceName(string(k), resPath)...)
 		allErrs = append(allErrs, ValidateResourceQuantityValue(string(k), v, resPath)...)
 	}
+	allErrs = append(allErrs, ValidateExtendedResourceGPU(status.Hard, fldPath)...)
+
 	fldPath = fld.Child("used")
 	for k, v := range status.Used {
 		resPath := fldPath.Key(string(k))
 		allErrs = append(allErrs, ValidateResourceQuotaResourceName(string(k), resPath)...)
 		allErrs = append(allErrs, ValidateResourceQuantityValue(string(k), v, resPath)...)
 	}
-
+	allErrs = append(allErrs, ValidateExtendedResourceGPU(status.Used, fldPath)...)
 	return allErrs
 }
 
@@ -4629,8 +4630,29 @@ func ValidateResourceQuotaSpec(resourceQuotaSpec *core.ResourceQuotaSpec, fld *f
 		allErrs = append(allErrs, ValidateResourceQuotaResourceName(string(k), resPath)...)
 		allErrs = append(allErrs, ValidateResourceQuantityValue(string(k), v, resPath)...)
 	}
+	allErrs = append(allErrs, ValidateExtendedResourceGPU(resourceQuotaSpec.Hard, fldPath)...)
 	allErrs = append(allErrs, validateResourceQuotaScopes(resourceQuotaSpec, fld)...)
 
+	return allErrs
+}
+
+func ValidateExtendedResourceGPU(resourceList core.ResourceList, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	existsResourceGPU := false
+	existsPrefix := false
+	for k := range resourceList {
+		if k == core.ResourceExtendedResourceGPU {
+			existsResourceGPU = true
+			continue
+		}
+		if strings.HasPrefix(string(k), core.ResourceExtendedResourceGPUPrefix) {
+			existsPrefix = true
+			continue
+		}
+	}
+	if existsResourceGPU && existsPrefix {
+		allErrs = append(allErrs, field.Invalid(fldPath, core.ResourceExtendedResourceGPU, "extended.resource.gpu and extended.resource.gpu.* can only exist one."))
+	}
 	return allErrs
 }
 

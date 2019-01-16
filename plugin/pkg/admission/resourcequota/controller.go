@@ -24,8 +24,8 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -488,6 +488,8 @@ func (e *quotaEvaluator) checkRequest(quotas []api.ResourceQuota, a admission.At
 		return nil, err
 	}
 
+	deltaUsage = aggregateResourceGPU(deltaUsage)
+
 	for _, index := range interestingQuotaIndexes {
 		resourceQuota := outQuotas[index]
 
@@ -513,6 +515,17 @@ func (e *quotaEvaluator) checkRequest(quotas []api.ResourceQuota, a admission.At
 	}
 
 	return outQuotas, nil
+}
+
+func aggregateResourceGPU(usage api.ResourceList) api.ResourceList {
+	quantity := resource.NewQuantity(0, resource.DecimalSI)
+	for resourceName, q := range usage {
+		if strings.HasPrefix(string(resourceName), api.ResourceExtendedResourceGPUPrefix) {
+			quantity.Add(q)
+		}
+	}
+	usage[api.ResourceExtendedResourceGPU] = *quantity
+	return usage
 }
 
 func (e *quotaEvaluator) Evaluate(a admission.Attributes) error {

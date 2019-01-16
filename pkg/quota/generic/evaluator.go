@@ -18,6 +18,7 @@ package generic
 
 import (
 	"fmt"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/labels"
@@ -134,7 +135,28 @@ func CalculateUsageStats(options quota.UsageStatsOptions,
 			result.Used = quota.Add(result.Used, usage)
 		}
 	}
-	return result, nil
+	return aggregateExtendedResource(options.Resources, result), nil
+}
+
+func aggregateExtendedResource(resources []api.ResourceName, usage quota.UsageStats) quota.UsageStats {
+	exists := false
+	for _, name := range resources {
+		if name == api.ResourceExtendedResourceGPU {
+			exists = true
+			break
+		}
+	}
+	if !exists {
+		return usage
+	}
+	quantity := resource.NewQuantity(0, resource.DecimalSI)
+	for resourceName := range usage.Used {
+		if strings.HasPrefix(string(resourceName), api.ResourceExtendedResourceGPUPrefix) {
+			quantity.Add(usage.Used[resourceName])
+		}
+	}
+	usage.Used[api.ResourceExtendedResourceGPU] = *quantity
+	return usage
 }
 
 // objectCountEvaluator provides an implementation for quota.Evaluator

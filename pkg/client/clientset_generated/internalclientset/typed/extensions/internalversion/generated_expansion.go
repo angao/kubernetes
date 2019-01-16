@@ -20,6 +20,10 @@ package internalversion
 
 type DaemonSetExpansion interface{}
 
+type ExtendedResourceExpansion interface{}
+
+type ExtendedResourceClaimExpansion interface{}
+
 type IngressExpansion interface{}
 
 type PodSecurityPolicyExpansion interface{}

@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-
+	fakeclient "k8s.io/client-go/kubernetes/fake"
 	pluginapi "k8s.io/kubernetes/pkg/kubelet/apis/deviceplugin/v1beta1"
 )
 
@@ -185,7 +185,8 @@ func esetup(t *testing.T, devs []*pluginapi.Device, socket, resourceName string,
 	err := p.Start()
 	require.NoError(t, err)
 
-	e, err := newEndpointImpl(socket, resourceName, make(map[string]pluginapi.Device), callback)
+	fakeClient := fakeclient.NewSimpleClientset()
+	e, err := newEndpointImpl(fakeClient, socket, resourceName, make(map[string]pluginapi.Device), callback)
 	require.NoError(t, err)
 
 	return p, e
