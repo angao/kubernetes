@@ -18,6 +18,7 @@ package dockershim
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,7 +29,6 @@ import (
 	dockerfilters "github.com/docker/docker/api/types/filters"
 	dockerstrslice "github.com/docker/docker/api/types/strslice"
 	"k8s.io/klog"
-
 	runtimeapi "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
 	"k8s.io/kubernetes/pkg/kubelet/dockershim/libdocker"
 )
@@ -431,7 +431,15 @@ func (ds *dockerService) ContainerStatus(_ context.Context, req *runtimeapi.Cont
 		Annotations: annotations,
 		LogPath:     r.Config.Labels[containerLogPathLabelKey],
 	}
-	return &runtimeapi.ContainerStatusResponse{Status: status}, nil
+
+	// Insert info level
+	infoMap := map[string]interface{}{"pid": r.State.Pid}
+	infoValue, err := json.Marshal(infoMap)
+	if err != nil {
+		return nil, err
+	}
+	info := map[string]string{"info": string(infoValue)}
+	return &runtimeapi.ContainerStatusResponse{Status: status, Info: info}, nil
 }
 
 func (ds *dockerService) UpdateContainerResources(_ context.Context, r *runtimeapi.UpdateContainerResourcesRequest) (*runtimeapi.UpdateContainerResourcesResponse, error) {
