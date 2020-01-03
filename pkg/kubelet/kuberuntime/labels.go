@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"strconv"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	kubetypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
@@ -39,6 +39,9 @@ const (
 	containerTerminationMessagePolicyLabel = "io.kubernetes.container.terminationMessagePolicy"
 	containerPreStopHandlerLabel           = "io.kubernetes.container.preStopHandler"
 	containerPortsLabel                    = "io.kubernetes.container.ports"
+
+	containerGPURequestsMemoryLabel = "io.caicloud.container.requests.gpu.memory"
+	containerGPULimitsMemoryLabel   = "io.caicloud.container.limits.gpu.memory"
 )
 
 type labeledPodSandboxInfo struct {
@@ -104,6 +107,21 @@ func newContainerLabels(container *v1.Container, pod *v1.Pod) map[string]string 
 	return labels
 }
 
+func extractRequest(podRequestedDevices types.PodRequestedDevices, cName string) []types.ExtendedResourceRequest {
+	resourceDetails := podRequestedDevices[cName]
+	extendedResourceRequests := make([]types.ExtendedResourceRequest, 0)
+	for _, detail := range resourceDetails {
+		for _, device := range detail.Devices {
+			extendedResourceRequests = append(extendedResourceRequests, types.ExtendedResourceRequest{
+				DeviceID: device.ID,
+				Memory:   device.Memory,
+				Thread:   device.Thread,
+			})
+		}
+	}
+	return extendedResourceRequests
+}
+
 // newContainerAnnotations creates container annotations from v1.Container and v1.Pod.
 func newContainerAnnotations(container *v1.Container, pod *v1.Pod, restartCount int, opts *kubecontainer.RunContainerOptions) map[string]string {
 	annotations := map[string]string{}
@@ -117,6 +135,21 @@ func newContainerAnnotations(container *v1.Container, pod *v1.Pod, restartCount 
 	annotations[containerRestartCountLabel] = strconv.Itoa(restartCount)
 	annotations[containerTerminationMessagePathLabel] = container.TerminationMessagePath
 	annotations[containerTerminationMessagePolicyLabel] = string(container.TerminationMessagePolicy)
+
+	podRequestedDevices := make(types.PodRequestedDevices)
+	if devices, found := pod.Annotations[types.DevicesAnnotation]; found {
+		if err := json.Unmarshal([]byte(devices), &podRequestedDevices); err == nil {
+			requests := extractRequest(podRequestedDevices, container.Name)
+			if requestsBytes, err := json.Marshal(requests); err == nil {
+				annotations[containerGPURequestsMemoryLabel] = string(requestsBytes)
+				annotations[containerGPULimitsMemoryLabel] = string(requestsBytes)
+			} else {
+				klog.Errorf("marshal container device request: %v", err)
+			}
+		} else {
+			klog.Errorf("unmarshal container device request: %v", err)
+		}
+	}
 
 	if pod.DeletionGracePeriodSeconds != nil {
 		annotations[podDeletionGracePeriodLabel] = strconv.FormatInt(*pod.DeletionGracePeriodSeconds, 10)

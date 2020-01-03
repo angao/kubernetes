@@ -18,6 +18,7 @@ package devicemanager
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -26,11 +27,10 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"k8s.io/klog"
-
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/klog"
 	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
 	pluginapi "k8s.io/kubernetes/pkg/kubelet/apis/deviceplugin/v1beta1"
 	podresourcesapi "k8s.io/kubernetes/pkg/kubelet/apis/podresources/v1alpha1"
@@ -40,6 +40,7 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/config"
 	"k8s.io/kubernetes/pkg/kubelet/lifecycle"
 	"k8s.io/kubernetes/pkg/kubelet/metrics"
+	"k8s.io/kubernetes/pkg/kubelet/types"
 	watcher "k8s.io/kubernetes/pkg/kubelet/util/pluginwatcher"
 	schedulernodeinfo "k8s.io/kubernetes/pkg/scheduler/nodeinfo"
 )
@@ -580,7 +581,7 @@ func (m *ManagerImpl) updateAllocatedDevices(activePods []*v1.Pod) {
 
 // Returns list of device Ids we need to allocate with Allocate rpc call.
 // Returns empty list in case we don't need to issue the Allocate rpc call.
-func (m *ManagerImpl) devicesToAllocate(podUID, contName, resource string, required int, reusableDevices sets.String) (sets.String, error) {
+func (m *ManagerImpl) devicesToAllocate(podUID, contName, resource string, required int, reusableDevices sets.String, allocated []string) (sets.String, error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	needed := required
@@ -618,14 +619,17 @@ func (m *ManagerImpl) devicesToAllocate(podUID, contName, resource string, requi
 	if m.allocatedDevices[resource] == nil {
 		m.allocatedDevices[resource] = sets.NewString()
 	}
-	// Gets Devices in use.
-	devicesInUse := m.allocatedDevices[resource]
-	// Gets a list of available devices.
-	available := m.healthyDevices[resource].Difference(devicesInUse)
-	if available.Len() < needed {
-		return nil, fmt.Errorf("requested number of devices unavailable for %s. Requested: %d, Available: %d", resource, needed, available.Len())
+
+	if len(allocated) == 0 {
+		// Gets Devices in use.
+		devicesInUse := m.allocatedDevices[resource]
+		// Gets a list of available devices.
+		available := m.healthyDevices[resource].Difference(devicesInUse)
+		if available.Len() < needed {
+			return nil, fmt.Errorf("requested number of devices unavailable for %s. Requested: %d, Available: %d", resource, needed, available.Len())
+		}
+		allocated = available.UnsortedList()[:needed]
 	}
-	allocated := available.UnsortedList()[:needed]
 	// Updates m.allocatedDevices with allocated devices to prevent them
 	// from being allocated to other pods/containers, given that we are
 	// not holding lock during the rpc call.
@@ -644,14 +648,38 @@ func (m *ManagerImpl) allocateContainerResources(pod *v1.Pod, container *v1.Cont
 	podUID := string(pod.UID)
 	contName := container.Name
 	allocatedDevicesUpdated := false
+
+	podRequestedDevices := make(types.PodRequestedDevices)
+	if devices, found := pod.Annotations[types.DevicesAnnotation]; found {
+		err := json.Unmarshal([]byte(devices), &podRequestedDevices)
+		if err != nil {
+			return err
+		}
+	}
+	resourceDetails, found := podRequestedDevices[container.Name]
 	// Extended resources are not allowed to be overcommitted.
 	// Since device plugin advertises extended resources,
 	// therefore Requests must be equal to Limits and iterating
 	// over the Limits should be sufficient.
 	for k, v := range container.Resources.Limits {
 		resource := string(k)
-		needed := int(v.Value())
+		needed := 0
+		if types.IsSharedResource(resource) {
+			needed = 1
+		} else {
+			needed = int(v.Value())
+		}
+
 		klog.V(3).Infof("needs %d %s", needed, resource)
+
+		allocated := make([]string, 0)
+		if detail, exist := resourceDetails[resource]; exist && found {
+			resource = detail.RawResourceName
+			for _, device := range detail.Devices {
+				allocated = append(allocated, device.ID)
+			}
+		}
+
 		if !m.isDevicePluginResource(resource) {
 			continue
 		}
@@ -661,7 +689,7 @@ func (m *ManagerImpl) allocateContainerResources(pod *v1.Pod, container *v1.Cont
 			m.updateAllocatedDevices(m.activePods())
 			allocatedDevicesUpdated = true
 		}
-		allocDevices, err := m.devicesToAllocate(podUID, contName, resource, needed, devicesToReuse[resource])
+		allocDevices, err := m.devicesToAllocate(podUID, contName, resource, needed, devicesToReuse[resource], allocated)
 		if err != nil {
 			return err
 		}
