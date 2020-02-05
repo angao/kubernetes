@@ -18,10 +18,19 @@ package types
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+)
+
+const (
+	// DevicesAnnotation defines container uses devices.
+	DevicesAnnotation = "extendedresource.caicloud.io/devices"
+	// ResourceGPUMemoryPrefix defines the usage of gpu memory prefix
+	ResourceGPUMemoryPrefix = "gpumemory.extendedresource.caicloud.io/"
+	ResourceGPUThreadPrefix = "gputhread.extendedresource.caicloud.io/"
 )
 
 // TODO: Reconcile custom types in kubelet/types and this subpackage
@@ -98,3 +107,38 @@ type ResolvedPodUID types.UID
 
 // A pod UID for a mirror pod.
 type MirrorPodUID types.UID
+
+// ExtendedResourceRequest record a extendedresource request of container.
+type ExtendedResourceRequest struct {
+	// extendedresource unique device id
+	DeviceID string `json:"deviceID,omitempty"`
+	// pod request gpu memory
+	Memory int64 `json:"memory,omitempty"`
+	// pod request gpu thread
+	Thread int64 `json:"thread,omitempty"`
+}
+
+// Device records the usage of extended resource.
+type Device struct {
+	ID     string `json:"id,omitempty"`
+	Name   string `json:"name,omitempty"`
+	Memory int64  `json:"memory,omitempty"`
+	Thread int64  `json:"thread,omitempty"`
+}
+
+// ResourceDetail describes what devices container needs.
+type ResourceDetail struct {
+	// used by container resources limits
+	RawResourceName string   `json:"rawResourceName,omitempty"`
+	Devices         []Device `json:"devices,omitempty"`
+}
+
+// ResourceDetails describes which devices are used by resource class, keyed by container resource name.
+type ResourceDetails map[string]*ResourceDetail
+
+// PodRequestedDevices describes the devices used by pod, keyed by container name.
+type PodRequestedDevices map[string]ResourceDetails
+
+func IsSharedResource(s string) bool {
+	return strings.HasPrefix(s, ResourceGPUMemoryPrefix) || strings.HasPrefix(s, ResourceGPUThreadPrefix)
+}
