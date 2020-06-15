@@ -27,21 +27,20 @@ import (
 	"path/filepath"
 	goruntime "runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	grpcstatus "google.golang.org/grpc/status"
-
 	"github.com/armon/circbuf"
-	"k8s.io/klog"
-
+	grpcstatus "google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubetypes "k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	"k8s.io/klog"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/events"
 	"k8s.io/kubernetes/pkg/kubelet/types"
@@ -252,9 +251,36 @@ func (m *kubeGenericRuntimeManager) generateContainerConfig(container *v1.Contai
 			Value: e.Value,
 		}
 	}
+	envs = append(envs, makeEnvs(container)...)
 	config.Envs = envs
 
 	return config, cleanupAction, nil
+}
+
+// makeEnvs generates container using GPU sharing usage.
+func makeEnvs(container *v1.Container) []*runtimeapi.KeyValue {
+	// GPU_SHARING_DISABLE
+	// GPU_SHARING_GPU_MEM_LIMIT
+	envs := make([]*runtimeapi.KeyValue, 0)
+	sharingDisable := true
+	sharingMemory := int64(0)
+	for rName, quant := range container.Resources.Limits {
+		if strings.HasPrefix(string(rName), types.ResourceGPUMemoryPrefix) {
+			sharingDisable = false
+			sharingMemory = quant.Value()
+			break
+		}
+	}
+
+	envs = append(envs, &runtimeapi.KeyValue{
+		Key:   "GPU_SHARING_DISABLE",
+		Value: strconv.FormatBool(sharingDisable),
+	})
+	envs = append(envs, &runtimeapi.KeyValue{
+		Key:   "GPU_SHARING_GPU_MEM_LIMIT",
+		Value: strconv.FormatInt(sharingMemory, 10),
+	})
+	return envs
 }
 
 // makeDevices generates container devices for kubelet runtime v1.
